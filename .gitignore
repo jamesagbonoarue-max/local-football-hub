@@ -1,0 +1,19 @@
+# Local secrets and environment overrides
+.env
+.env.*
+!.env.example
+!.env.sample
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.sample
+
+# Dependencies and generated output
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+.data/
+**/.data/
+.vercel/
+**/.vercel/
