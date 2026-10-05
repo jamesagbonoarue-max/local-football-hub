@@ -37,22 +37,37 @@ export function LeagueProvider({ children }) {
 
   useEffect(() => {
     let active = true
-    const refreshPublicLeagueData = () => {
-      Promise.all([
-        apiRequest('/api/matches', { token: '' }),
-        apiRequest('/api/teams', { token: '' }),
-        apiRequest('/api/updates', { token: '' }),
-      ])
-        .then(([matchResult, teamResult, updateResult]) => {
-          if (active) setLeague((current) => ({ ...current, matches: matchResult.matches, teams: teamResult.teams, updates: updateResult.updates }))
-        })
-        .catch(() => {})
+    let inFlight = false
+    let refreshTimer
+    const refreshPublicLeagueData = async () => {
+      if (!active || document.visibilityState !== 'visible' || inFlight) return
+      inFlight = true
+      try {
+        const [matchResult, teamResult, updateResult] = await Promise.all([
+          apiRequest('/api/matches', { token: '' }),
+          apiRequest('/api/teams', { token: '' }),
+          apiRequest('/api/updates', { token: '' }),
+        ])
+        if (active) setLeague((current) => ({ ...current, matches: matchResult.matches, teams: teamResult.teams, updates: updateResult.updates }))
+      } catch {
+        return
+      } finally {
+        inFlight = false
+        if (active && document.visibilityState === 'visible') {
+          refreshTimer = window.setTimeout(refreshPublicLeagueData, 30000)
+        }
+      }
+    }
+    const handleVisibilityChange = () => {
+      window.clearTimeout(refreshTimer)
+      if (document.visibilityState === 'visible') refreshPublicLeagueData()
     }
     refreshPublicLeagueData()
-    const refreshInterval = window.setInterval(refreshPublicLeagueData, 15000)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => {
       active = false
-      window.clearInterval(refreshInterval)
+      window.clearTimeout(refreshTimer)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [])
 

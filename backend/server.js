@@ -34,11 +34,13 @@ const matchSchema = new mongoose.Schema({
   awayScore: { type: Number, min: 0, max: 99, default: null },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Account', required: true },
 }, { timestamps: true })
+matchSchema.index({ date: 1, kickoff: 1 })
 const leagueUpdateSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true, maxlength: 120 },
   body: { type: String, required: true, trim: true, maxlength: 1200 },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Account', required: true },
 }, { timestamps: true })
+leagueUpdateSchema.index({ createdAt: -1 })
 const registrationSchema = new mongoose.Schema({
   teamName: { type: String, required: true, trim: true, maxlength: 80 },
   division: { type: String, required: true, trim: true, maxlength: 60 },
@@ -50,6 +52,8 @@ const registrationSchema = new mongoose.Schema({
   reviewedAt: { type: Date, default: null },
   reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Account', default: null },
 }, { timestamps: true })
+registrationSchema.index({ status: 1, createdAt: -1 })
+registrationSchema.index({ status: 1, teamName: 1 })
 const leagueCapacitySchema = new mongoose.Schema({
   _id: { type: String, required: true },
   activeTeams: { type: Number, required: true, min: 0 },

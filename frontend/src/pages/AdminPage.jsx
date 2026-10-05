@@ -55,21 +55,36 @@ export default function AdminPage() {
 
   useEffect(() => {
     let active = true
-    const refresh = () => {
-      loadAdminAccessLists()
-        .then((result) => {
-          if (!active) return
-          setInvitations(result.invitations)
-          setAdministrators(result.administrators)
-          setRegistrations(result.registrations)
-        })
-        .catch((error) => { if (active) setInvitationError(error.message) })
+    let inFlight = false
+    let refreshTimer
+    const refresh = async () => {
+      if (!active || document.visibilityState !== 'visible' || inFlight) return
+      inFlight = true
+      try {
+        const result = await loadAdminAccessLists()
+        if (!active) return
+        setInvitations(result.invitations)
+        setAdministrators(result.administrators)
+        setRegistrations(result.registrations)
+      } catch (error) {
+        if (active) setInvitationError(error.message)
+      } finally {
+        inFlight = false
+        if (active && document.visibilityState === 'visible') {
+          refreshTimer = window.setTimeout(refresh, 30000)
+        }
+      }
+    }
+    const handleVisibilityChange = () => {
+      window.clearTimeout(refreshTimer)
+      if (document.visibilityState === 'visible') refresh()
     }
     refresh()
-    const refreshInterval = window.setInterval(refresh, 15000)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => {
       active = false
-      window.clearInterval(refreshInterval)
+      window.clearTimeout(refreshTimer)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [])
 
