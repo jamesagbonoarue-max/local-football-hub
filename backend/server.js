@@ -15,6 +15,22 @@ const frontendOrigins = String(process.env.FRONTEND_ORIGINS || 'https://big-boys
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean)
+
+function getInvitationAppUrl() {
+  const configuredUrl = String(process.env.APP_URL || '').trim()
+  const fallbackUrl = 'https://big-boys-fc.vercel.app'
+  if (!configuredUrl) return fallbackUrl
+
+  try {
+    const parsedUrl = new URL(configuredUrl)
+    const isLoopback = ['localhost', '127.0.0.1', '[::1]'].includes(parsedUrl.hostname)
+    if (process.env.RENDER === 'true' && isLoopback) return fallbackUrl
+    return configuredUrl.replace(/\/+$/, '')
+  } catch {
+    return fallbackUrl
+  }
+}
+
 const accountSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true, maxlength: 80 },
   email: { type: String, required: true, unique: true, lowercase: true, trim: true, maxlength: 160 },
@@ -578,7 +594,7 @@ app.post('/api/admin/invitations', databaseReady, authenticate, administratorOnl
   })
 
   try {
-    const appUrl = process.env.APP_URL || 'https://big-boys-fc.vercel.app'
+    const appUrl = getInvitationAppUrl()
     const activationUrl = `${appUrl}/accept-admin-invite?email=${encodeURIComponent(email)}`
     await sendEmail({
       to: email,
