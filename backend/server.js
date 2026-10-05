@@ -698,6 +698,6 @@ mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 5000 })
   .then(() => console.log('MongoDB connected.'))
   .catch((error) => console.error(`MongoDB unavailable: ${error.message}`))
 
-app.listen(port, () => {
-  console.log(`Backend listening on http://localhost:${port}`)
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Backend listening on 0.0.0.0:${port}`)
 })
