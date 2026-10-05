@@ -180,9 +180,9 @@ function safeRegistration(registration) {
   }
 }
 
-function signInToken(account, role) {
+function signInToken(account, role, rememberMe = false) {
   const user = safeUser(account, role)
-  return { token: jwt.sign(user, jwtSecret, { expiresIn: '12h' }), user }
+  return { token: jwt.sign(user, jwtSecret, { expiresIn: rememberMe ? '30d' : '12h' }), user }
 }
 
 function databaseReady(request, response, next) {
@@ -318,7 +318,7 @@ app.post('/api/auth/login', databaseReady, async (request, response) => {
     return response.status(403).json({ error: 'Administrator ID is incorrect.' })
   }
 
-  return response.json(signInToken(account, role))
+  return response.json(signInToken(account, role, request.body?.rememberMe === true))
 })
 
 app.post('/api/auth/password-reset/request', databaseReady, async (request, response) => {
