@@ -187,7 +187,7 @@ async function reserveTeamCapacity() {
   return LeagueCapacity.findOneAndUpdate(
     { _id: 'active-teams', activeTeams: { $lt: maxActiveTeams } },
     { $inc: { activeTeams: 1 } },
-    { new: true },
+    { returnDocument: 'after' },
   )
 }
 
@@ -311,7 +311,7 @@ app.post('/api/auth/password-reset/request', databaseReady, async (request, resp
     attempts: 0,
     lastSentAt: now,
     expiresAt: new Date(now.getTime() + 15 * 60 * 1000),
-  }, { upsert: true, new: true, setDefaultsOnInsert: true })
+  }, { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true })
 
   try {
     const { from, transporter } = createMailer()
@@ -434,7 +434,7 @@ app.put('/api/admin/registrations/:id', databaseReady, authenticate, administrat
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updates.email) || updates.email.length > 160) return response.status(400).json({ error: 'Enter a valid contact email.' })
   if (updates.phone.length > 40 || updates.homeGround.length > 100) return response.status(400).json({ error: 'Phone or home ground information is too long.' })
 
-  const registration = await TeamRegistration.findByIdAndUpdate(request.params.id, updates, { new: true, runValidators: true })
+  const registration = await TeamRegistration.findByIdAndUpdate(request.params.id, updates, { returnDocument: 'after', runValidators: true })
   if (!registration) return response.status(404).json({ error: 'Registration not found.' })
   return response.json({ registration: safeRegistration(registration) })
 })
@@ -451,7 +451,7 @@ app.patch('/api/admin/registrations/:id/status', databaseReady, authenticate, ad
     status,
     reviewedAt: new Date(),
     reviewedBy: request.account._id,
-  }, { new: true, runValidators: true })
+  }, { returnDocument: 'after', runValidators: true })
   if (!registration) {
     const existing = await TeamRegistration.findById(request.params.id).lean()
     if (!existing) return response.status(404).json({ error: 'Registration not found.' })
@@ -536,7 +536,7 @@ app.put('/api/admin/matches/:id', databaseReady, authenticate, administratorOnly
   const awayScore = status === 'completed' ? Number(request.body?.awayScore) : null
   if (status === 'completed' && (!Number.isInteger(homeScore) || homeScore < 0 || homeScore > 99 || !Number.isInteger(awayScore) || awayScore < 0 || awayScore > 99)) return response.status(400).json({ error: 'Enter valid scores between 0 and 99.' })
 
-  const match = await Match.findByIdAndUpdate(request.params.id, { homeTeam, awayTeam, date, kickoff, venue, status, homeScore, awayScore }, { new: true, runValidators: true })
+  const match = await Match.findByIdAndUpdate(request.params.id, { homeTeam, awayTeam, date, kickoff, venue, status, homeScore, awayScore }, { returnDocument: 'after', runValidators: true })
   if (!match) return response.status(404).json({ error: 'Match not found.' })
   return response.json({ match: safeMatch(match) })
 })
