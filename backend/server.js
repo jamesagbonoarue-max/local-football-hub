@@ -74,6 +74,10 @@ const leagueCapacitySchema = new mongoose.Schema({
   _id: { type: String, required: true },
   activeTeams: { type: Number, required: true, min: 0 },
 }, { versionKey: false })
+const leagueSettingsSchema = new mongoose.Schema({
+  _id: { type: String, default: 'global' },
+  leagueName: { type: String, required: true, trim: true, maxlength: 100 },
+}, { timestamps: true, versionKey: false })
 const invitationSchema = new mongoose.Schema({
   name: { type: String, required: true, maxlength: 80 },
   email: { type: String, required: true, lowercase: true, trim: true, maxlength: 160 },
@@ -100,6 +104,7 @@ const Match = mongoose.models.Match || mongoose.model('Match', matchSchema)
 const LeagueUpdate = mongoose.models.LeagueUpdate || mongoose.model('LeagueUpdate', leagueUpdateSchema)
 const TeamRegistration = mongoose.models.TeamRegistration || mongoose.model('TeamRegistration', registrationSchema)
 const LeagueCapacity = mongoose.models.LeagueCapacity || mongoose.model('LeagueCapacity', leagueCapacitySchema)
+const LeagueSettings = mongoose.models.LeagueSettings || mongoose.model('LeagueSettings', leagueSettingsSchema)
 const AdminInvitation = mongoose.models.AdminInvitation || mongoose.model('AdminInvitation', invitationSchema)
 const PasswordReset = mongoose.models.PasswordReset || mongoose.model('PasswordReset', passwordResetSchema)
 
@@ -438,6 +443,26 @@ app.get('/api/teams', databaseReady, async (request, response) => {
     division: registration.division,
     homeGround: registration.homeGround,
   })) })
+})
+
+app.get('/api/league-settings', databaseReady, async (request, response) => {
+  const settings = await LeagueSettings.findById('global').select('leagueName').lean()
+  response.json({ leagueName: settings?.leagueName || 'Local Football League' })
+})
+
+app.put('/api/admin/league-settings', databaseReady, authenticate, administratorOnly, async (request, response) => {
+  const leagueName = String(request.body?.leagueName || '').trim()
+  if (!leagueName || leagueName.length > 100) {
+    return response.status(400).json({ error: 'Enter a league name between 1 and 100 characters.' })
+  }
+
+  const settings = await LeagueSettings.findByIdAndUpdate('global', { $set: { leagueName } }, {
+    upsert: true,
+    returnDocument: 'after',
+    runValidators: true,
+    setDefaultsOnInsert: true,
+  }).lean()
+  return response.json({ leagueName: settings.leagueName })
 })
 
 app.get('/api/admin/registrations', databaseReady, authenticate, administratorOnly, async (request, response) => {

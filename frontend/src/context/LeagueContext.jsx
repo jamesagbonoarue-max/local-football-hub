@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { LeagueContext } from './leagueContext.js'
 import { apiRequest } from './authApi.js'
 
-const STORAGE_KEY = 'local-football-league-data'
 const emptyLeague = {
   leagueName: 'Local Football League',
   matches: [],
@@ -11,29 +10,8 @@ const emptyLeague = {
   registrations: [],
 }
 
-function readLeague() {
-  try {
-    const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY))
-    if (!saved || typeof saved !== 'object') return emptyLeague
-    return {
-      ...emptyLeague,
-      ...saved,
-      matches: [],
-      updates: [],
-      teams: [],
-      registrations: [],
-    }
-  } catch {
-    return emptyLeague
-  }
-}
-
 export function LeagueProvider({ children }) {
-  const [league, setLeague] = useState(readLeague)
-
-  useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ leagueName: league.leagueName }))
-  }, [league])
+  const [league, setLeague] = useState(() => ({ ...emptyLeague }))
 
   useEffect(() => {
     let active = true
@@ -43,12 +21,19 @@ export function LeagueProvider({ children }) {
       if (!active || document.visibilityState !== 'visible' || inFlight) return
       inFlight = true
       try {
-        const [matchResult, teamResult, updateResult] = await Promise.all([
+        const [matchResult, teamResult, updateResult, settingsResult] = await Promise.all([
           apiRequest('/api/matches', { token: '' }),
           apiRequest('/api/teams', { token: '' }),
           apiRequest('/api/updates', { token: '' }),
+          apiRequest('/api/league-settings', { token: '' }),
         ])
-        if (active) setLeague((current) => ({ ...current, matches: matchResult.matches, teams: teamResult.teams, updates: updateResult.updates }))
+        if (active) setLeague((current) => ({
+          ...current,
+          leagueName: settingsResult.leagueName,
+          matches: matchResult.matches,
+          teams: teamResult.teams,
+          updates: updateResult.updates,
+        }))
       } catch {
         return
       } finally {
@@ -71,27 +56,13 @@ export function LeagueProvider({ children }) {
     }
   }, [])
 
-  useEffect(() => {
-    const syncFromOtherTab = (event) => {
-      if (event.key !== STORAGE_KEY || !event.newValue) return
-      try {
-        const saved = JSON.parse(event.newValue)
-        setLeague((current) => ({
-          ...current,
-          leagueName: saved.leagueName || emptyLeague.leagueName,
-          updates: Array.isArray(saved.updates) ? saved.updates : [],
-        }))
-      } catch {
-        setLeague(emptyLeague)
-      }
-    }
-    window.addEventListener('storage', syncFromOtherTab)
-    return () => window.removeEventListener('storage', syncFromOtherTab)
-  }, [])
-
   const value = {
     ...league,
-    setLeagueName: (name) => setLeague((current) => ({ ...current, leagueName: name.trim() || emptyLeague.leagueName })),
+    setLeagueName: async (name) => {
+      const result = await apiRequest('/api/admin/league-settings', { method: 'PUT', body: { leagueName: name } })
+      setLeague((current) => ({ ...current, leagueName: result.leagueName }))
+      return result.leagueName
+    },
     addMatch: async (match) => {
       const result = await apiRequest('/api/admin/matches', { method: 'POST', body: match })
       setLeague((current) => ({ ...current, matches: [result.match, ...current.matches] }))

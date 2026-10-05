@@ -37,7 +37,8 @@ export default function AdminPage() {
     teams,
     removeTeam,
   } = useLeague()
-  const [nameInput, setNameInput] = useState(leagueName)
+  const [nameInputOverride, setNameInputOverride] = useState(null)
+  const nameInput = nameInputOverride ?? leagueName
   const [matchForm, setMatchForm] = useState(newMatch)
   const [matchError, setMatchError] = useState('')
   const [editingRegistration, setEditingRegistration] = useState('')
@@ -45,6 +46,7 @@ export default function AdminPage() {
   const [registrationError, setRegistrationError] = useState('')
   const [updateForm, setUpdateForm] = useState(newUpdate)
   const [notice, setNotice] = useState('')
+  const [leagueError, setLeagueError] = useState('')
   const [invitationForm, setInvitationForm] = useState({ name: '', email: '' })
   const [invitations, setInvitations] = useState([])
   const [administrators, setAdministrators] = useState([])
@@ -119,10 +121,16 @@ export default function AdminPage() {
     }
   }
 
-  function saveLeague(event) {
+  async function saveLeague(event) {
     event.preventDefault()
-    setLeagueName(nameInput)
-    setNotice('League name saved.')
+    setLeagueError('')
+    try {
+      await setLeagueName(nameInput)
+      setNotice('League name saved for all users.')
+      setNameInputOverride(null)
+    } catch (error) {
+      setLeagueError(error.message)
+    }
   }
 
   async function saveMatch(event) {
@@ -274,9 +282,10 @@ export default function AdminPage() {
       <section className={`${panelClass} mb-5 p-5 sm:p-6`}>
         <div className="mb-4"><p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-sky-800">Public identity</p><h2 className="mt-1 font-display text-2xl font-bold text-slate-950">League settings</h2></div>
         <form className="flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={saveLeague}>
-          <label className={`${labelClass} flex-1`}>League name<input className={fieldClass} value={nameInput} onChange={(event) => setNameInput(event.target.value)} required maxLength="100" /></label>
+          <label className={`${labelClass} flex-1`}>League name<input className={fieldClass} value={nameInput} onChange={(event) => setNameInputOverride(event.target.value)} required maxLength="100" /></label>
           <button className="min-h-10 rounded-sm bg-slate-900 px-5 text-xs font-bold text-white hover:bg-slate-800" type="submit">Save league name</button>
         </form>
+        {leagueError && <p className="mt-3 rounded-sm border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-semibold text-rose-800" role="alert">{leagueError}</p>}
       </section>
 
       <div className="grid items-start gap-5 xl:grid-cols-2">
