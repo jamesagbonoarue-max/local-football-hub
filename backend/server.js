@@ -4,7 +4,6 @@ const cors = require('cors')
 const express = require('express')
 const jwt = require('jsonwebtoken')
 const mongoose = require('mongoose')
-const nodemailer = require('nodemailer')
 require('dotenv').config()
 
 const app = express()
@@ -216,21 +215,30 @@ function administratorOnly(request, response, next) {
   next()
 }
 
-function createMailer() {
-  const { SMTP_HOST: host, SMTP_USER: user, SMTP_PASS: pass, SMTP_FROM: from } = process.env
-  if (!host || !user || !pass || !from) {
-    throw new Error('Email delivery is not configured. Set SMTP_HOST, SMTP_USER, SMTP_PASS and SMTP_FROM.')
+async function sendEmail({ to, subject, text }) {
+  const apiKey = process.env.BREVO_API_KEY
+  const senderEmail = process.env.BREVO_SENDER_EMAIL
+  const senderName = process.env.BREVO_SENDER_NAME || 'Local Football League'
+  if (!apiKey || !senderEmail) {
+    throw new Error('Email delivery is not configured. Set BREVO_API_KEY and BREVO_SENDER_EMAIL.')
   }
-  const portNumber = Number(process.env.SMTP_PORT) || 587
-  return {
-    from,
-    transporter: nodemailer.createTransport({
-      host,
-      port: portNumber,
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: { user, pass },
+
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': apiKey,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      sender: { name: senderName, email: senderEmail },
+      to: [{ email: to }],
+      subject,
+      textContent: text,
     }),
-  }
+  })
+  const result = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(result.message || result.code || `Brevo API request failed with status ${response.status}.`)
 }
 
 async function seedDefaultAdmin() {
@@ -314,9 +322,7 @@ app.post('/api/auth/password-reset/request', databaseReady, async (request, resp
   }, { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true })
 
   try {
-    const { from, transporter } = createMailer()
-    await transporter.sendMail({
-      from,
+    await sendEmail({
       to: email,
       subject: 'Your Local Football League password reset code',
       text: [
@@ -329,7 +335,7 @@ app.post('/api/auth/password-reset/request', databaseReady, async (request, resp
   } catch (error) {
     await PasswordReset.deleteOne({ email })
     console.error('Password reset email failed:', error.message)
-    return response.status(503).json({ error: 'Could not send the reset email. Check the mail settings and try again.' })
+    return response.status(503).json({ error: 'Could not send the reset email. Check Brevo API and verified sender settings in the backend environment.' })
   }
 
   return response.status(202).json({ message: genericMessage })
@@ -568,11 +574,9 @@ app.post('/api/admin/invitations', databaseReady, authenticate, administratorOnl
   })
 
   try {
-    const { from, transporter } = createMailer()
     const appUrl = process.env.APP_URL || 'https://big-boys-fc.vercel.app'
     const activationUrl = `${appUrl}/accept-admin-invite?email=${encodeURIComponent(email)}`
-    await transporter.sendMail({
-      from,
+    await sendEmail({
       to: email,
       subject: 'Your Local Football League administrator invitation',
       text: [
@@ -658,9 +662,7 @@ app.post('/api/auth/accept-admin-invitation', databaseReady, async (request, res
 
   let activationEmailSent = false
   try {
-    const { from, transporter } = createMailer()
-    await transporter.sendMail({
-      from,
+    await sendEmail({
       to: email,
       subject: 'Your Local Football League administrator account is active',
       text: [
