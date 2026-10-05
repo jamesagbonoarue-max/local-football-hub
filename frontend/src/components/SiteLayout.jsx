@@ -55,8 +55,16 @@ export default function SiteLayout() {
         <Outlet />
       </main>
       <footer className="border-t border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
-          <span>{leagueName}</span><span>Local football, shared locally</span>
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+          <span>{leagueName}</span>
+          <span>Local football, shared locally</span>
+          <div className="flex flex-col gap-1 sm:items-end">
+            <span>Developed by Agbonoarue Destiny</span>
+            <div className="flex flex-wrap gap-x-3 gap-y-1 normal-case tracking-normal">
+              <a className="hover:text-sky-800" href="mailto:jamesagbonoarue@gmail.com">jamesagbonoarue@gmail.com</a>
+              <a className="hover:text-sky-800" href="tel:09039376584">09039376584</a>
+            </div>
+          </div>
         </div>
       </footer>
     </div>
