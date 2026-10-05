@@ -581,6 +581,8 @@ app.post('/api/admin/invitations', databaseReady, authenticate, administratorOnl
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 160) return response.status(400).json({ error: 'Enter a valid email address.' })
   if (await Account.exists({ email })) return response.status(409).json({ error: 'That email already has an account.' })
 
+  const now = new Date()
+  await AdminInvitation.updateMany({ email, acceptedAt: null, expiresAt: { $gt: now } }, { $set: { expiresAt: now } })
   const verificationCode = String(crypto.randomInt(100000000, 1000000000))
   const adminId = `ADMIN-${crypto.randomBytes(6).toString('hex').toUpperCase()}`
   const invitation = await AdminInvitation.create({
@@ -590,7 +592,7 @@ app.post('/api/admin/invitations', databaseReady, authenticate, administratorOnl
     adminIdHash: hashSecret(adminId),
     adminIdEncrypted: encryptSecret(adminId),
     invitedBy: request.account._id,
-    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
   })
 
   try {
@@ -655,6 +657,7 @@ app.post('/api/auth/accept-admin-invitation', databaseReady, async (request, res
   if (password.length < 8 || password.length > 128) return response.status(400).json({ error: 'Password must be between 8 and 128 characters.' })
 
   const invitation = await AdminInvitation.findOne({ email, acceptedAt: null, expiresAt: { $gt: new Date() } })
+    .sort({ createdAt: -1 })
     .select('+verificationCodeHash +adminIdHash +adminIdEncrypted')
   if (!invitation) {
     return response.status(400).json({ error: 'The invitation code is invalid or expired.' })
