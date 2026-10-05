@@ -12,7 +12,10 @@ const port = Number(process.env.PORT) || 5000
 const maxActiveTeams = 70
 const jwtSecret = process.env.JWT_SECRET || crypto.randomBytes(48).toString('hex')
 const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/local_football_league'
-const frontendOrigins = String(process.env.FRONTEND_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean)
+const frontendOrigins = String(process.env.FRONTEND_ORIGINS || 'https://www.big-boys-fc.vercel.app,http://127.0.0.1:5174,http://localhost:5174')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean)
 const accountSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true, maxlength: 80 },
   email: { type: String, required: true, unique: true, lowercase: true, trim: true, maxlength: 160 },
@@ -566,7 +569,7 @@ app.post('/api/admin/invitations', databaseReady, authenticate, administratorOnl
 
   try {
     const { from, transporter } = createMailer()
-    const appUrl = process.env.APP_URL || 'http://127.0.0.1:5174'
+    const appUrl = process.env.APP_URL || 'https://www.big-boys-fc.vercel.app'
     const activationUrl = `${appUrl}/accept-admin-invite?email=${encodeURIComponent(email)}`
     await transporter.sendMail({
       from,
