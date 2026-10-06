@@ -277,6 +277,17 @@ async function ensureTeamCapacity() {
   return capacity
 }
 
+async function validateRegisteredMatchTeams(homeTeam, awayTeam) {
+  if (homeTeam.toLowerCase() === awayTeam.toLowerCase()) {
+    return 'Choose two different registered teams.'
+  }
+  const registeredTeamNames = await TeamRegistration.distinct('teamName', {
+    status: 'approved',
+    teamName: { $in: [homeTeam, awayTeam] },
+  })
+  return registeredTeamNames.length === 2 ? '' : 'Choose both teams from the approved registered teams.'
+}
+
 async function reserveTeamCapacity() {
   await ensureTeamCapacity()
   return LeagueCapacity.findOneAndUpdate(
@@ -640,6 +651,8 @@ app.post('/api/admin/matches', databaseReady, authenticate, administratorOnly, a
   if (!homeTeam || homeTeam.length > 80 || !awayTeam || awayTeam.length > 80) {
     return response.status(400).json({ error: 'Enter valid home and away team names (up to 80 characters).' })
   }
+  const teamError = await validateRegisteredMatchTeams(homeTeam, awayTeam)
+  if (teamError) return response.status(400).json({ error: teamError })
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`))) {
     return response.status(400).json({ error: 'Enter a valid match date.' })
   }
@@ -667,6 +680,8 @@ app.put('/api/admin/matches/:id', databaseReady, authenticate, administratorOnly
   const venue = String(request.body?.venue || '').trim()
   const status = request.body?.status === 'completed' ? 'completed' : 'scheduled'
   if (!homeTeam || homeTeam.length > 80 || !awayTeam || awayTeam.length > 80) return response.status(400).json({ error: 'Enter valid home and away team names (up to 80 characters).' })
+  const teamError = await validateRegisteredMatchTeams(homeTeam, awayTeam)
+  if (teamError) return response.status(400).json({ error: teamError })
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`))) return response.status(400).json({ error: 'Enter a valid match date.' })
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(kickoff)) return response.status(400).json({ error: 'Enter a valid kick-off time.' })
   if (venue.length > 120) return response.status(400).json({ error: 'Venue must be 120 characters or fewer.' })
