@@ -36,7 +36,7 @@ export default function HomePage() {
 
       <div className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-4">
         {[
-          { label: 'Scheduled matches', count: matches.filter((match) => match.status === 'scheduled' && isUpcomingMatch(match)).length, icon: CalendarDays },
+          { label: 'Scheduled matches', count: matches.filter((match) => match.status === 'scheduled').length, icon: CalendarDays },
           { label: 'Results recorded', count: matches.filter((match) => match.status === 'completed').length, icon: Trophy },
           { label: 'Registered teams', count: teams.length, icon: UsersRound },
           { label: 'League updates', count: updates.length, icon: Newspaper },

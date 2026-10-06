@@ -11,6 +11,15 @@ require('dotenv').config()
 const app = express()
 const port = Number(process.env.PORT) || 5000
 const maxActiveTeams = 70
+const matchExpiryFormatter = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Africa/Lagos',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
 const logoUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024, files: 1 },
@@ -63,6 +72,18 @@ const matchSchema = new mongoose.Schema({
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Account', required: true },
 }, { timestamps: true })
 matchSchema.index({ date: 1, kickoff: 1 })
+function getExpiredMatchQuery(now = new Date()) {
+  const cutoff = new Date(now.getTime() - 2 * 60 * 60 * 1000)
+  const parts = Object.fromEntries(matchExpiryFormatter.formatToParts(cutoff).map(({ type, value }) => [type, value]))
+  const cutoffDate = `${parts.year}-${parts.month}-${parts.day}`
+  const cutoffKickoff = `${parts.hour}:${parts.minute}`
+  return {
+    $or: [
+      { date: { $lt: cutoffDate } },
+      { date: cutoffDate, kickoff: { $lte: cutoffKickoff } },
+    ],
+  }
+}
 const leagueUpdateSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true, maxlength: 120 },
   body: { type: String, required: true, trim: true, maxlength: 1200 },
@@ -121,6 +142,26 @@ const LeagueCapacity = mongoose.models.LeagueCapacity || mongoose.model('LeagueC
 const LeagueSettings = mongoose.models.LeagueSettings || mongoose.model('LeagueSettings', leagueSettingsSchema)
 const AdminInvitation = mongoose.models.AdminInvitation || mongoose.model('AdminInvitation', invitationSchema)
 const PasswordReset = mongoose.models.PasswordReset || mongoose.model('PasswordReset', passwordResetSchema)
+
+let expiredMatchCleanupPromise
+function cleanupExpiredMatches() {
+  if (mongoose.connection.readyState !== 1) return Promise.resolve(0)
+  if (expiredMatchCleanupPromise) return expiredMatchCleanupPromise
+  expiredMatchCleanupPromise = Match.deleteMany(getExpiredMatchQuery())
+    .then(({ deletedCount }) => {
+      if (deletedCount) console.info(`Removed ${deletedCount} expired matches.`)
+      return deletedCount
+    })
+    .finally(() => {
+      expiredMatchCleanupPromise = null
+    })
+  return expiredMatchCleanupPromise
+}
+
+const expiredMatchCleanupTimer = setInterval(() => {
+  cleanupExpiredMatches().catch((error) => console.error('Expired match cleanup failed:', error.message))
+}, 60_000)
+expiredMatchCleanupTimer.unref()
 
 app.use(cors({ origin: frontendOrigins.length ? frontendOrigins : true }))
 app.use(express.json({ limit: '20kb' }))
@@ -678,6 +719,7 @@ app.patch('/api/admin/registrations/:id/status', databaseReady, authenticate, ad
 })
 
 app.get('/api/matches', databaseReady, async (request, response) => {
+  await cleanupExpiredMatches()
   const matches = await Match.find({}).sort({ date: 1, kickoff: 1 }).lean()
   response.json({ matches: matches.map(safeMatch) })
 })
