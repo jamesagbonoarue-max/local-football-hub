@@ -1,5 +1,6 @@
 import { CalendarDays, CircleHelp, MapPin, Pencil, Trash2, Trophy } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { useLeague } from '../context/useLeague.js'
 import { isUpcomingMatch } from '../utils/matchTime.js'
 
 export function PageHeading({ eyebrow, title, description, action }) {
@@ -27,6 +28,10 @@ export function EmptyState({ icon: Icon = CircleHelp, title, description, to, ac
 }
 
 export function MatchListItem({ match, onEdit, onPublishResult, onDelete }) {
+  const { teams } = useLeague()
+  const getTeamLogo = (teamName) => teams.find((team) => team.teamName.trim().toLowerCase() === teamName.trim().toLowerCase())?.logoUrl
+  const homeLogo = getTeamLogo(match.homeTeam)
+  const awayLogo = getTeamLogo(match.awayTeam)
   const date = match.date
     ? new Date(`${match.date}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
     : 'Date to be confirmed'
@@ -39,7 +44,11 @@ export function MatchListItem({ match, onEdit, onPublishResult, onDelete }) {
     <article className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 border-b border-slate-100 py-4 last:border-b-0">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <h3 className="truncate text-sm font-bold text-slate-900">{match.homeTeam} <span className="font-medium text-slate-400">vs</span> {match.awayTeam}</h3>
+          <h3 className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm font-bold text-slate-900">
+            <span className="inline-flex min-w-0 items-center gap-1.5">{homeLogo && <img className="size-6 shrink-0 rounded-sm border border-slate-200 bg-white object-contain p-0.5" src={homeLogo} alt="" />}<span className="truncate">{match.homeTeam}</span></span>
+            <span className="font-medium text-slate-400">vs</span>
+            <span className="inline-flex min-w-0 items-center gap-1.5">{awayLogo && <img className="size-6 shrink-0 rounded-sm border border-slate-200 bg-white object-contain p-0.5" src={awayLogo} alt="" />}<span className="truncate">{match.awayTeam}</span></span>
+          </h3>
           <span className={`rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${statusClass}`}>{statusLabel}</span>
         </div>
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
