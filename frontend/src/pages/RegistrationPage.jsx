@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, ClipboardList } from 'lucide-react'
+import { Check, ClipboardList, ImagePlus } from 'lucide-react'
 import { useLeague } from '../context/useLeague.js'
 import { fieldClass, labelClass, PageHeading, panelClass } from '../components/ui.jsx'
 
@@ -8,6 +8,7 @@ export default function RegistrationPage() {
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [logoFile, setLogoFile] = useState(null)
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -16,8 +17,9 @@ export default function RegistrationPage() {
     setSubmitting(true)
     try {
       const formData = new FormData(formElement)
-      await registerTeam(Object.fromEntries(formData.entries()))
+      await registerTeam(formData)
       formElement.reset()
+      setLogoFile(null)
       setSubmitted(true)
     } catch (requestError) {
       setError(requestError.message)
@@ -41,7 +43,14 @@ export default function RegistrationPage() {
               <label className={labelClass}>Contact email<input className={fieldClass} name="email" type="email" required maxLength="160" placeholder="manager@example.com" /></label>
               <label className={labelClass}>Phone <span className="font-normal text-slate-400">(optional)</span><input className={fieldClass} name="phone" type="tel" maxLength="40" placeholder="Contact number" /></label>
               <label className={labelClass}>Home ground<input className={fieldClass} name="homeGround" maxLength="100" placeholder="Ground name or address" /></label>
-              <label className={`${labelClass} sm:col-span-2`}>Team logo <span className="font-normal text-slate-400">(optional, max 5 MB)</span><input className={fieldClass} name="logo" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></label>
+              <label className={`${labelClass} sm:col-span-2`}>
+                <span className="flex items-center gap-2"><ImagePlus size={15} className="text-sky-800" /> Team logo <span className="font-normal text-slate-400">(optional)</span></span>
+                <span className="mt-2 flex flex-col gap-2 rounded-sm border border-dashed border-sky-300 bg-sky-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <input className="block w-full min-w-0 text-xs text-slate-700 file:mr-3 file:min-h-9 file:cursor-pointer file:rounded-sm file:border-0 file:bg-sky-800 file:px-4 file:font-bold file:text-white hover:file:bg-sky-900" name="logo" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => setLogoFile(event.target.files[0] || null)} />
+                  <span className="shrink-0 text-[10px] font-semibold text-slate-500">JPG, PNG, WebP or GIF · max 5 MB</span>
+                </span>
+                {logoFile && <span className="mt-1 block truncate text-xs font-semibold text-sky-900">Selected: {logoFile.name}</span>}
+              </label>
             </div>
             <button className="inline-flex min-h-11 items-center gap-2 rounded-sm bg-sky-800 px-5 text-xs font-extrabold text-white hover:bg-sky-900 disabled:cursor-wait disabled:opacity-60" type="submit" disabled={submitting}><ClipboardList size={16} /> {submitting ? 'Submitting…' : 'Submit registration'}</button>
           </form>
