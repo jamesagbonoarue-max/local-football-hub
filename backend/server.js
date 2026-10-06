@@ -206,9 +206,18 @@ function parseLogoUpload(request, response, next) {
 }
 
 function requireCloudinaryConfig() {
+  if (process.env.CLOUDINARY_URL) {
+    const config = cloudinary.config(true)
+    if (!config.cloud_name || !config.api_key || !config.api_secret) {
+      throw new Error('Team logo uploads are not configured. Set CLOUDINARY_URL or the three Cloudinary environment variables.')
+    }
+    cloudinary.config({ secure: true })
+    return
+  }
+
   const { CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET } = process.env
   if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
-    throw new Error('Team logo uploads are not configured. Set the Cloudinary environment variables.')
+    throw new Error('Team logo uploads are not configured. Set CLOUDINARY_URL or the three Cloudinary environment variables.')
   }
   cloudinary.config({
     cloud_name: CLOUDINARY_CLOUD_NAME,
