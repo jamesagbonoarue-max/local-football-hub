@@ -43,6 +43,8 @@ export default function AdminPage() {
   const [matchError, setMatchError] = useState('')
   const [editingRegistration, setEditingRegistration] = useState('')
   const [registrationForm, setRegistrationForm] = useState({ teamName: '', division: '', managerName: '', email: '', phone: '', homeGround: '' })
+  const [registrationLogo, setRegistrationLogo] = useState(null)
+  const [logoRegistrationId, setLogoRegistrationId] = useState('')
   const [registrationError, setRegistrationError] = useState('')
   const [updateForm, setUpdateForm] = useState(newUpdate)
   const [notice, setNotice] = useState('')
@@ -199,16 +201,45 @@ export default function AdminPage() {
       phone: registration.phone || '',
       homeGround: registration.homeGround || '',
     })
+    setRegistrationLogo(null)
   }
 
   async function saveRegistration(event) {
     event.preventDefault()
     setRegistrationError('')
     try {
-      const updated = await updateRegistration(editingRegistration, registrationForm)
+      const formData = new FormData()
+      Object.entries(registrationForm).forEach(([key, value]) => formData.append(key, value))
+      if (registrationLogo) formData.append('logo', registrationLogo)
+      const updated = await updateRegistration(editingRegistration, formData)
       setRegistrations((current) => current.map((item) => item.id === updated.id ? updated : item))
       setEditingRegistration('')
+      setRegistrationLogo(null)
       setNotice('Registration details saved to MongoDB.')
+    } catch (error) {
+      setRegistrationError(error.message)
+    }
+  }
+
+  async function uploadRegistrationLogo(event) {
+    event.preventDefault()
+    setRegistrationError('')
+    const registration = registrations.find((item) => item.id === logoRegistrationId)
+    if (!registration || !registrationLogo) {
+      setRegistrationError('Choose a pending application and an image file.')
+      return
+    }
+    const formData = new FormData()
+    for (const key of ['teamName', 'division', 'managerName', 'email', 'phone', 'homeGround']) {
+      formData.append(key, registration[key] || '')
+    }
+    formData.append('logo', registrationLogo)
+    try {
+      const updated = await updateRegistration(registration.id, formData)
+      setRegistrations((current) => current.map((item) => item.id === updated.id ? updated : item))
+      setRegistrationLogo(null)
+      event.currentTarget.reset()
+      setNotice(`Logo saved for ${updated.teamName}.`)
     } catch (error) {
       setRegistrationError(error.message)
     }
@@ -331,6 +362,7 @@ export default function AdminPage() {
         <section className={`${panelClass} p-5 sm:p-6`}>
           <div className="mb-4 flex items-center justify-between gap-3"><div><p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-sky-800">Team applications</p><h2 className="mt-1 font-display text-2xl font-bold text-slate-950">Pending review</h2></div><span className="grid size-9 place-items-center rounded-sm bg-sky-50 text-sky-800"><UsersRound size={17} /></span></div>
           {registrationError && <p className="mb-3 rounded-sm border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-semibold text-rose-800" role="alert">{registrationError}</p>}
+          {registrations.length > 0 && <form className="mb-4 grid gap-3 rounded-sm border border-slate-200 p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end" onSubmit={uploadRegistrationLogo}><label className={labelClass}>Application<select className={fieldClass} value={logoRegistrationId} onChange={(event) => setLogoRegistrationId(event.target.value)} required><option value="">Choose a team</option>{registrations.map((registration) => <option key={registration.id} value={registration.id}>{registration.teamName}</option>)}</select></label><label className={labelClass}>Team logo<input className={fieldClass} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => setRegistrationLogo(event.target.files[0] || null)} required /></label><button className="min-h-10 rounded-sm bg-sky-800 px-4 text-xs font-extrabold text-white hover:bg-sky-900" type="submit">Upload logo</button>{registrations.find((item) => item.id === logoRegistrationId)?.logoUrl && <img className="size-16 rounded-sm border border-slate-200 object-contain p-1 sm:col-span-3" src={registrations.find((item) => item.id === logoRegistrationId).logoUrl} alt={`${registrations.find((item) => item.id === logoRegistrationId).teamName} logo`} />}</form>}
           {registrations.length ? <ul className="divide-y divide-slate-100">{registrations.map((registration) => <li className="py-4 first:pt-0" key={registration.id}>{editingRegistration === registration.id ? <form className="grid gap-3 sm:grid-cols-2" onSubmit={saveRegistration}><label className={labelClass}>Team name<input className={fieldClass} value={registrationForm.teamName} onChange={(event) => setRegistrationForm({ ...registrationForm, teamName: event.target.value })} required maxLength="80" /></label><label className={labelClass}>Division<input className={fieldClass} value={registrationForm.division} onChange={(event) => setRegistrationForm({ ...registrationForm, division: event.target.value })} required maxLength="60" /></label><label className={labelClass}>Manager<input className={fieldClass} value={registrationForm.managerName} onChange={(event) => setRegistrationForm({ ...registrationForm, managerName: event.target.value })} required maxLength="80" /></label><label className={labelClass}>Email<input className={fieldClass} type="email" value={registrationForm.email} onChange={(event) => setRegistrationForm({ ...registrationForm, email: event.target.value })} required maxLength="160" /></label><label className={labelClass}>Phone<input className={fieldClass} value={registrationForm.phone} onChange={(event) => setRegistrationForm({ ...registrationForm, phone: event.target.value })} maxLength="40" /></label><label className={labelClass}>Home ground<input className={fieldClass} value={registrationForm.homeGround} onChange={(event) => setRegistrationForm({ ...registrationForm, homeGround: event.target.value })} maxLength="100" /></label><div className="flex gap-2 sm:col-span-2"><button className="min-h-9 rounded-sm bg-sky-800 px-3 text-[11px] font-bold text-white hover:bg-sky-900" type="submit">Save details</button><button className="min-h-9 rounded-sm border border-slate-300 px-3 text-[11px] font-bold text-slate-600 hover:bg-slate-50" type="button" onClick={() => setEditingRegistration('')}>Cancel</button></div></form> : <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-sm font-bold text-slate-950">{registration.teamName}</h3><p className="mt-1 text-xs text-slate-600">{registration.division} {registration.homeGround && `· ${registration.homeGround}`}</p><p className="mt-1 text-xs text-slate-500">{registration.managerName} · {registration.email}{registration.phone && ` · ${registration.phone}`}</p></div><div className="flex flex-wrap gap-2"><button className="min-h-9 rounded-sm border border-slate-300 px-3 text-[11px] font-bold text-slate-600 hover:bg-slate-50" type="button" onClick={() => editRegistration(registration)}>Edit details</button><button className="inline-flex min-h-9 items-center gap-1.5 rounded-sm bg-emerald-700 px-3 text-[11px] font-bold text-white hover:bg-emerald-800" type="button" onClick={() => setRegistrationStatus(registration, 'approved')}><Check size={14} /> Approve</button><button className="min-h-9 rounded-sm border border-rose-200 px-3 text-[11px] font-bold text-rose-700 hover:bg-rose-50" type="button" onClick={() => setRegistrationStatus(registration, 'rejected')}>Reject</button></div></div>}</li>)}</ul> : <EmptyState icon={UsersRound} title="No pending registrations" description="New team applications will appear here for review." />}
         </section>
 

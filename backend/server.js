@@ -1,14 +1,26 @@
 const bcrypt = require('bcryptjs')
 const crypto = require('node:crypto')
+const cloudinary = require('cloudinary').v2
 const cors = require('cors')
 const express = require('express')
 const jwt = require('jsonwebtoken')
 const mongoose = require('mongoose')
+const multer = require('multer')
 require('dotenv').config()
 
 const app = express()
 const port = Number(process.env.PORT) || 5000
 const maxActiveTeams = 70
+const logoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  fileFilter: (_request, file, callback) => {
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.mimetype)) {
+      return callback(new Error('Upload a JPG, PNG, WebP, or GIF image.'))
+    }
+    callback(null, true)
+  },
+}).single('logo')
 const jwtSecret = process.env.JWT_SECRET || crypto.randomBytes(48).toString('hex')
 const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/local_football_league'
 const frontendOrigins = String(process.env.FRONTEND_ORIGINS || 'https://big-boys-fc.vercel.app,http://127.0.0.1:5174,http://localhost:5174')
@@ -64,6 +76,8 @@ const registrationSchema = new mongoose.Schema({
   email: { type: String, required: true, trim: true, lowercase: true, maxlength: 160 },
   phone: { type: String, trim: true, maxlength: 40, default: '' },
   homeGround: { type: String, trim: true, maxlength: 100, default: '' },
+  logoUrl: { type: String, default: '' },
+  logoPublicId: { type: String, default: '' },
   status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
   reviewedAt: { type: Date, default: null },
   reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Account', default: null },
@@ -174,10 +188,58 @@ function safeRegistration(registration) {
     email: registration.email,
     phone: registration.phone,
     homeGround: registration.homeGround,
+    logoUrl: registration.logoUrl || '',
     status: registration.status,
     submittedAt: registration.createdAt,
     reviewedAt: registration.reviewedAt,
   }
+}
+
+function parseLogoUpload(request, response, next) {
+  logoUpload(request, response, (error) => {
+    if (error) {
+      const status = error instanceof multer.MulterError ? 400 : 415
+      return response.status(status).json({ error: error.message })
+    }
+    next()
+  })
+}
+
+function requireCloudinaryConfig() {
+  const { CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET } = process.env
+  if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+    throw new Error('Team logo uploads are not configured. Set the Cloudinary environment variables.')
+  }
+  cloudinary.config({
+    cloud_name: CLOUDINARY_CLOUD_NAME,
+    api_key: CLOUDINARY_API_KEY,
+    api_secret: CLOUDINARY_API_SECRET,
+    secure: true,
+  })
+}
+
+function uploadTeamLogo(file) {
+  requireCloudinaryConfig()
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream({
+      folder: 'local-football-league/team-logos',
+      resource_type: 'image',
+    }, (error, result) => {
+      if (error) return reject(error)
+      resolve({ logoUrl: result.secure_url, logoPublicId: result.public_id })
+    })
+    stream.end(file.buffer)
+  })
+}
+
+async function deleteTeamLogo(registration) {
+  if (!registration.logoPublicId) return
+  requireCloudinaryConfig()
+  const result = await cloudinary.uploader.destroy(registration.logoPublicId, { resource_type: 'image' })
+  if (!['ok', 'not found'].includes(result.result)) throw new Error('Cloudinary could not delete the team logo.')
+  registration.logoUrl = ''
+  registration.logoPublicId = ''
+  await registration.save()
 }
 
 function signInToken(account, role, rememberMe = false) {
@@ -402,7 +464,7 @@ app.get('/api/auth/me', databaseReady, authenticate, (request, response) => {
   response.json({ user: safeUser(request.account, request.authRole) })
 })
 
-app.post('/api/registrations', databaseReady, async (request, response) => {
+app.post('/api/registrations', databaseReady, parseLogoUpload, async (request, response) => {
   const registration = {
     teamName: String(request.body?.teamName || '').trim(),
     division: String(request.body?.division || '').trim(),
@@ -423,9 +485,18 @@ app.post('/api/registrations', databaseReady, async (request, response) => {
   }
 
   let saved
+  let uploadedLogo
   try {
-    saved = await TeamRegistration.create(registration)
+    if (request.file) uploadedLogo = await uploadTeamLogo(request.file)
+    saved = await TeamRegistration.create({ ...registration, ...uploadedLogo })
   } catch (error) {
+    if (uploadedLogo?.logoPublicId) {
+      try {
+        await cloudinary.uploader.destroy(uploadedLogo.logoPublicId, { resource_type: 'image' })
+      } catch {
+        // Preserve the original registration error.
+      }
+    }
     await LeagueCapacity.updateOne({ _id: 'active-teams' }, { $inc: { activeTeams: -1 } })
     throw error
   }
@@ -435,13 +506,14 @@ app.post('/api/registrations', databaseReady, async (request, response) => {
 app.get('/api/teams', databaseReady, async (request, response) => {
   const registrations = await TeamRegistration.find({ status: 'approved' })
     .sort({ teamName: 1 })
-    .select('teamName division homeGround')
+    .select('teamName division homeGround logoUrl')
     .lean()
   response.json({ teams: registrations.map((registration) => ({
     id: registration._id.toString(),
     teamName: registration.teamName,
     division: registration.division,
     homeGround: registration.homeGround,
+    logoUrl: registration.logoUrl || '',
   })) })
 })
 
@@ -470,7 +542,7 @@ app.get('/api/admin/registrations', databaseReady, authenticate, administratorOn
   response.json({ registrations: registrations.map(safeRegistration) })
 })
 
-app.put('/api/admin/registrations/:id', databaseReady, authenticate, administratorOnly, async (request, response) => {
+app.put('/api/admin/registrations/:id', databaseReady, authenticate, administratorOnly, parseLogoUpload, async (request, response) => {
   if (!mongoose.isValidObjectId(request.params.id)) return response.status(400).json({ error: 'Invalid registration ID.' })
   const updates = {
     teamName: String(request.body?.teamName || '').trim(),
@@ -485,8 +557,15 @@ app.put('/api/admin/registrations/:id', databaseReady, authenticate, administrat
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updates.email) || updates.email.length > 160) return response.status(400).json({ error: 'Enter a valid contact email.' })
   if (updates.phone.length > 40 || updates.homeGround.length > 100) return response.status(400).json({ error: 'Phone or home ground information is too long.' })
 
-  const registration = await TeamRegistration.findByIdAndUpdate(request.params.id, updates, { returnDocument: 'after', runValidators: true })
+  const registration = await TeamRegistration.findById(request.params.id)
   if (!registration) return response.status(404).json({ error: 'Registration not found.' })
+  const oldLogoPublicId = registration.logoPublicId
+  Object.assign(registration, updates)
+  if (request.file) Object.assign(registration, await uploadTeamLogo(request.file))
+  await registration.save()
+  if (request.file && oldLogoPublicId) {
+    await cloudinary.uploader.destroy(oldLogoPublicId, { resource_type: 'image' })
+  }
   return response.json({ registration: safeRegistration(registration) })
 })
 
@@ -495,23 +574,22 @@ app.patch('/api/admin/registrations/:id/status', databaseReady, authenticate, ad
   const status = request.body?.status
   if (!['approved', 'rejected'].includes(status)) return response.status(400).json({ error: 'Status must be approved or rejected.' })
   await ensureTeamCapacity()
-  const registration = await TeamRegistration.findOneAndUpdate({
-    _id: request.params.id,
-    status: { $in: ['pending', 'approved'] },
-  }, {
-    status,
-    reviewedAt: new Date(),
-    reviewedBy: request.account._id,
-  }, { returnDocument: 'after', runValidators: true })
-  if (!registration) {
-    const existing = await TeamRegistration.findById(request.params.id).lean()
-    if (!existing) return response.status(404).json({ error: 'Registration not found.' })
-    if (existing.status === status) return response.json({ registration: safeRegistration(existing) })
+  const registration = await TeamRegistration.findById(request.params.id)
+  if (!registration) return response.status(404).json({ error: 'Registration not found.' })
+  if (registration.status === 'rejected' && status === 'rejected') {
+    await deleteTeamLogo(registration)
+    return response.json({ registration: safeRegistration(registration) })
+  }
+  if (registration.status === 'rejected') {
     return response.status(409).json({ error: 'Rejected registrations cannot be reactivated. Submit a new application.' })
   }
-  if (status === 'rejected') {
-    await LeagueCapacity.updateOne({ _id: 'active-teams' }, { $inc: { activeTeams: -1 } })
-  }
+  if (registration.status === status) return response.json({ registration: safeRegistration(registration) })
+  if (status === 'rejected') await deleteTeamLogo(registration)
+  registration.status = status
+  registration.reviewedAt = new Date()
+  registration.reviewedBy = request.account._id
+  await registration.save()
+  if (status === 'rejected') await LeagueCapacity.updateOne({ _id: 'active-teams' }, { $inc: { activeTeams: -1 } })
   return response.json({ registration: safeRegistration(registration) })
 })
 

@@ -41,6 +41,7 @@ export default function RegistrationPage() {
               <label className={labelClass}>Contact email<input className={fieldClass} name="email" type="email" required maxLength="160" placeholder="manager@example.com" /></label>
               <label className={labelClass}>Phone <span className="font-normal text-slate-400">(optional)</span><input className={fieldClass} name="phone" type="tel" maxLength="40" placeholder="Contact number" /></label>
               <label className={labelClass}>Home ground<input className={fieldClass} name="homeGround" maxLength="100" placeholder="Ground name or address" /></label>
+              <label className={`${labelClass} sm:col-span-2`}>Team logo <span className="font-normal text-slate-400">(optional, max 5 MB)</span><input className={fieldClass} name="logo" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></label>
             </div>
             <button className="inline-flex min-h-11 items-center gap-2 rounded-sm bg-sky-800 px-5 text-xs font-extrabold text-white hover:bg-sky-900 disabled:cursor-wait disabled:opacity-60" type="submit" disabled={submitting}><ClipboardList size={16} /> {submitting ? 'Submitting…' : 'Submit registration'}</button>
           </form>

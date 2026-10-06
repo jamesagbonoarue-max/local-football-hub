@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react'
 import { AuthContext } from './authContext.js'
-import { apiRequest, SESSION_KEY } from './authApi.js'
+import { apiRequest, clearSessionToken, getSessionToken, saveSessionToken } from './authApi.js'
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(() => Boolean(window.sessionStorage.getItem(SESSION_KEY)))
+  const [loading, setLoading] = useState(() => Boolean(getSessionToken()))
 
   useEffect(() => {
     let active = true
-    const token = window.sessionStorage.getItem(SESSION_KEY)
+    const token = getSessionToken()
     if (!token) return undefined
 
     apiRequest('/api/auth/me', { token })
       .then((result) => { if (active) setUser(result.user) })
-      .catch(() => window.sessionStorage.removeItem(SESSION_KEY))
+      .catch(clearSessionToken)
       .finally(() => { if (active) setLoading(false) })
 
     return () => { active = false }
@@ -21,7 +21,7 @@ export function AuthProvider({ children }) {
 
   async function login(credentials) {
     const result = await apiRequest('/api/auth/login', { method: 'POST', body: credentials, token: '' })
-    window.sessionStorage.setItem(SESSION_KEY, result.token)
+    saveSessionToken(result.token, Boolean(credentials.rememberMe))
     setUser(result.user)
     return result.user
   }
@@ -31,7 +31,7 @@ export function AuthProvider({ children }) {
   }
 
   function logout() {
-    window.sessionStorage.removeItem(SESSION_KEY)
+    clearSessionToken()
     setUser(null)
   }
 

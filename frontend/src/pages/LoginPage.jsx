@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Eye, EyeOff, KeyRound, LockKeyhole, LogIn, Shield, UserRound } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/useAuth.js'
 import { fieldClass, labelClass } from '../components/ui.jsx'
 
 export default function LoginPage() {
-  const { login } = useAuth()
+  const { login, user, loading } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const search = new URLSearchParams(location.search)
@@ -17,16 +17,22 @@ export default function LoginPage() {
   const safeRequestedPath = requestedPath.startsWith('/') && !requestedPath.startsWith('//') ? requestedPath : ''
   const [role, setRole] = useState('user')
   const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
   const [form, setForm] = useState({ email: search.get('email') || '', password: '', adminId: '' })
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (loading || !user) return
+    navigate(user.role === 'admin' ? (safeRequestedPath || '/admin') : '/', { replace: true })
+  }, [loading, navigate, safeRequestedPath, user])
 
   async function handleSubmit(event) {
     event.preventDefault()
     setError('')
     setSubmitting(true)
     try {
-      const user = await login({ ...form, role })
+      const user = await login({ ...form, role, rememberMe })
       navigate(user.role === 'admin' ? (safeRequestedPath || '/admin') : '/', { replace: true })
     } catch (requestError) {
       setError(requestError.message)
@@ -65,6 +71,7 @@ export default function LoginPage() {
           <label className={labelClass}>Email address<input className={fieldClass} autoComplete="email" name="email" type="email" required maxLength="160" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} placeholder="you@example.com" /></label>
           <label className={labelClass}>Password<span className="relative mt-1 block"><input className={`${fieldClass} pr-12`} autoComplete="current-password" name="password" type={showPassword ? 'text' : 'password'} required value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} placeholder="Enter your password" /><button className="absolute inset-y-0 right-0 grid w-11 place-items-center text-slate-500 hover:text-slate-900" type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></span></label>
           {role === 'user' && <div className="-mt-2 text-right"><Link className="text-xs font-bold text-sky-800 hover:text-sky-950" to={`/forgot-password?email=${encodeURIComponent(form.email)}`}>Forgot password?</Link></div>}
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-600"><input className="size-4 accent-sky-800" type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} />Remember me on this device</label>
 
           {role === 'admin' && <label className={labelClass}>Administrator ID<span className="relative mt-1 block"><KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} /><input className={`${fieldClass} pl-10`} autoComplete="off" name="adminId" required value={form.adminId} onChange={(event) => setForm({ ...form, adminId: event.target.value })} placeholder="Enter your special ID" /></span><span className="mt-1 block font-normal text-slate-500">Required for administrator access.</span></label>}
 
