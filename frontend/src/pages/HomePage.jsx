@@ -1,7 +1,7 @@
 import { ArrowRight, CalendarDays, CircleHelp, Newspaper, Trophy, UsersRound } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useLeague } from '../context/useLeague.js'
-import { EmptyState, MatchListItem, panelClass } from '../components/ui.jsx'
+import { EmptyState, MatchListItem, panelClass, TeamIdentity } from '../components/ui.jsx'
 import { isUpcomingMatch } from '../utils/matchTime.js'
 
 const photoUrl = 'https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?auto=format&fit=crop&w=1200&q=85'
@@ -75,7 +75,7 @@ export default function HomePage() {
 
           <section className={`${panelClass} p-5 sm:p-6`}>
             <div className="mb-2 flex items-start justify-between gap-3"><div><p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-sky-800">League directory</p><h2 className="mt-1 font-display text-2xl font-bold text-slate-950">Teams</h2></div><span className="grid size-9 place-items-center rounded-sm bg-sky-50 text-sky-800"><UsersRound size={17} /></span></div>
-            {teams.length ? <ul className="mt-4 divide-y divide-slate-100">{teams.map((team) => <li className="flex items-center gap-3 py-3 first:pt-1" key={team.id}>{team.logoUrl ? <img className="size-10 shrink-0 rounded-sm border border-slate-200 object-contain p-1" src={team.logoUrl} alt={`${team.teamName} logo`} /> : <span className="grid size-10 shrink-0 place-items-center rounded-sm bg-sky-50 text-sky-800"><UsersRound size={17} /></span>}<span className="min-w-0 flex-1"><strong className="block truncate text-sm text-slate-900">{team.teamName}</strong><span className="mt-1 block text-xs text-slate-500">{team.division || 'Division pending'}</span></span></li>)}</ul> : <EmptyState icon={UsersRound} title="No teams registered" description="Approved teams will be listed here." to="/register" actionLabel="Register a team" />}
+            {teams.length ? <ul className="mt-4 divide-y divide-slate-100">{teams.map((team) => <li className="flex items-center gap-3 py-3 first:pt-1" key={team.id}><span className="min-w-0 flex-1"><TeamIdentity teamName={team.teamName} logoUrl={team.logoUrl} logoClassName="size-10" fallbackIcon={UsersRound} nameClassName="text-sm font-bold text-slate-900" /><span className="mt-1 block text-xs text-slate-500">{team.division || 'Division pending'}</span></span></li>)}</ul> : <EmptyState icon={UsersRound} title="No teams registered" description="Approved teams will be listed here." to="/register" actionLabel="Register a team" />}
           </section>
         </div>
       </div>

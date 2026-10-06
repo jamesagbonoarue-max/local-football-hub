@@ -27,11 +27,20 @@ export function EmptyState({ icon: Icon = CircleHelp, title, description, to, ac
   )
 }
 
+export function TeamIdentity({ teamName, logoUrl, className = '', nameClassName = '', logoClassName = 'size-6', fallbackIcon: FallbackIcon }) {
+  return (
+    <span className={`inline-flex min-w-0 items-center gap-1.5 ${className}`}>
+      {logoUrl ? <img className={`${logoClassName} shrink-0 rounded-sm border border-slate-200 bg-white object-contain p-0.5`} src={logoUrl} alt={`${teamName} logo`} /> : FallbackIcon && <span className={`${logoClassName} grid shrink-0 place-items-center rounded-sm bg-sky-50 text-sky-800`}><FallbackIcon size={17} /></span>}
+      <span className={`min-w-0 truncate ${nameClassName}`}>{teamName}</span>
+    </span>
+  )
+}
+
 export function MatchListItem({ match, onEdit, onPublishResult, onDelete }) {
   const { teams } = useLeague()
-  const getTeamLogo = (teamName) => teams.find((team) => team.teamName.trim().toLowerCase() === teamName.trim().toLowerCase())?.logoUrl
-  const homeLogo = getTeamLogo(match.homeTeam)
-  const awayLogo = getTeamLogo(match.awayTeam)
+  const getTeam = (teamName) => teams.find((team) => team.teamName.trim().toLowerCase() === teamName.trim().toLowerCase())
+  const homeTeam = getTeam(match.homeTeam)
+  const awayTeam = getTeam(match.awayTeam)
   const date = match.date
     ? new Date(`${match.date}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
     : 'Date to be confirmed'
@@ -45,9 +54,9 @@ export function MatchListItem({ match, onEdit, onPublishResult, onDelete }) {
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <h3 className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm font-bold text-slate-900">
-            <span className="inline-flex min-w-0 items-center gap-1.5">{homeLogo && <img className="size-6 shrink-0 rounded-sm border border-slate-200 bg-white object-contain p-0.5" src={homeLogo} alt="" />}<span className="truncate">{match.homeTeam}</span></span>
+            <TeamIdentity teamName={match.homeTeam} logoUrl={homeTeam?.logoUrl} />
             <span className="font-medium text-slate-400">vs</span>
-            <span className="inline-flex min-w-0 items-center gap-1.5">{awayLogo && <img className="size-6 shrink-0 rounded-sm border border-slate-200 bg-white object-contain p-0.5" src={awayLogo} alt="" />}<span className="truncate">{match.awayTeam}</span></span>
+            <TeamIdentity teamName={match.awayTeam} logoUrl={awayTeam?.logoUrl} />
           </h3>
           <span className={`rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${statusClass}`}>{statusLabel}</span>
         </div>
