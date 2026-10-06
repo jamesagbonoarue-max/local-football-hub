@@ -322,7 +322,62 @@ function administratorOnly(request, response, next) {
   next()
 }
 
-async function sendEmail({ to, subject, text }) {
+function escapeEmailHtml(value) {
+  return String(value).replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[character])
+}
+
+function renderEmailHtml({ preheader, title, greeting, message, details = [], actionLabel, actionUrl, note }) {
+  const detailRows = details.map(({ label, value }) => `
+    <tr>
+      <td style="padding:12px 14px;border:1px solid #dbe4ee;background:#f8fafc;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#64748b;">${escapeEmailHtml(label)}</div>
+        <div style="margin-top:6px;font-size:18px;font-weight:700;letter-spacing:0.4px;color:#0f172a;word-break:break-word;">${escapeEmailHtml(value)}</div>
+      </td>
+    </tr>`).join('')
+  const action = actionLabel && actionUrl ? `
+    <tr>
+      <td style="padding-top:24px;">
+        <a href="${escapeEmailHtml(actionUrl)}" style="display:inline-block;padding:13px 20px;border-radius:4px;background:#075985;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;">${escapeEmailHtml(actionLabel)}</a>
+      </td>
+    </tr>` : ''
+
+  return `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#eef3f8;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${escapeEmailHtml(preheader)}</div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#eef3f8;padding:28px 12px;">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px;background:#ffffff;border:1px solid #dbe4ee;border-radius:6px;overflow:hidden;">
+        <tr><td style="padding:22px 28px;background:#082f49;color:#ffffff;">
+          <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#bef264;">Big Boyz FC</div>
+          <div style="margin-top:5px;font-size:12px;color:#cbd5e1;">Local Football League</div>
+        </td></tr>
+        <tr><td style="padding:32px 28px 28px;">
+          <h1 style="margin:0;font-size:25px;line-height:1.25;color:#0f172a;">${escapeEmailHtml(title)}</h1>
+          <p style="margin:22px 0 8px;font-size:15px;line-height:1.6;color:#334155;">${escapeEmailHtml(greeting)}</p>
+          <p style="margin:0;font-size:14px;line-height:1.7;color:#475569;">${escapeEmailHtml(message)}</p>
+          ${details.length ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:22px;">${detailRows}</table>` : ''}
+          ${action ? `<table role="presentation" cellspacing="0" cellpadding="0">${action}</table>` : ''}
+          <p style="margin:22px 0 0;padding-top:18px;border-top:1px solid #e2e8f0;font-size:12px;line-height:1.7;color:#64748b;">${escapeEmailHtml(note)}</p>
+        </td></tr>
+        <tr><td style="padding:16px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;font-size:11px;line-height:1.6;color:#64748b;">
+          Big Boyz FC · Local Football League<br>This is an automated account message. Please do not share verification codes or sign-in IDs.
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+}
+
+async function sendEmail({ to, subject, text, html }) {
   const apiKey = process.env.BREVO_API_KEY
   const senderEmail = process.env.BREVO_SENDER_EMAIL
   const senderName = process.env.BREVO_SENDER_NAME || 'Local Football League'
@@ -342,6 +397,7 @@ async function sendEmail({ to, subject, text }) {
       to: [{ email: to }],
       subject,
       textContent: text,
+      htmlContent: html,
     }),
   })
   const result = await response.json().catch(() => ({}))
@@ -438,6 +494,14 @@ app.post('/api/auth/password-reset/request', databaseReady, async (request, resp
         'This code expires in 15 minutes and can only be used once.',
         'If you did not request a password reset, you can ignore this email.',
       ].join('\n'),
+      html: renderEmailHtml({
+        preheader: 'Your password reset code for Big Boyz FC.',
+        title: 'Reset your password',
+        greeting: 'A password reset was requested for your league account.',
+        message: 'Enter this one-time code on the password reset page:',
+        details: [{ label: 'Reset code', value: code }],
+        note: 'This code expires in 15 minutes and can only be used once. If you did not request a reset, you can ignore this email.',
+      }),
     })
   } catch (error) {
     await PasswordReset.deleteOne({ email })
@@ -738,6 +802,19 @@ app.post('/api/admin/invitations', databaseReady, authenticate, administratorOnl
         `Accept the invitation within 24 hours: ${activationUrl}`,
         'Create your own password during activation. Never share your verification code or administrator ID.',
       ].join('\n'),
+      html: renderEmailHtml({
+        preheader: 'You have been invited to administer the Local Football League.',
+        title: 'Administrator invitation',
+        greeting: `Hello ${name},`,
+        message: 'An administrator invited you to help manage the Local Football League. Use these one-time credentials to activate your account:',
+        details: [
+          { label: 'Verification code', value: verificationCode },
+          { label: 'Administrator sign-in ID', value: adminId },
+        ],
+        actionLabel: 'Accept invitation',
+        actionUrl: activationUrl,
+        note: 'This invitation expires in 24 hours. Create your own password during activation. Never share your verification code or administrator ID.',
+      }),
     })
   } catch (error) {
     await AdminInvitation.deleteOne({ _id: invitation._id })
@@ -823,6 +900,19 @@ app.post('/api/auth/accept-admin-invitation', databaseReady, async (request, res
         `Administrator ID: ${decryptSecret(invitation.adminIdEncrypted)}`,
         'Use the password you chose during activation. For security, your password is never sent by email.',
       ].join('\n'),
+      html: renderEmailHtml({
+        preheader: 'Your Big Boyz FC administrator account is active.',
+        title: 'Your account is active',
+        greeting: `Hello ${name},`,
+        message: 'Your administrator account is ready. Sign in with these details:',
+        details: [
+          { label: 'Sign-in email', value: email },
+          { label: 'Administrator ID', value: decryptSecret(invitation.adminIdEncrypted) },
+        ],
+        actionLabel: 'Open league',
+        actionUrl: getInvitationAppUrl(),
+        note: 'Use the password you chose during activation. For security, your password is never sent by email.',
+      }),
     })
     activationEmailSent = true
   } catch (error) {
