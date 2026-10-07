@@ -7,7 +7,7 @@ import { isUpcomingMatch } from '../utils/matchTime.js'
 const photoUrl = 'https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?auto=format&fit=crop&w=1200&q=85'
 
 export default function HomePage() {
-  const { leagueName, matches, updates, teams } = useLeague()
+  const { leagueName, matchTableUrl, matches, updates, teams } = useLeague()
   const nextFixture = [...matches]
     .filter((match) => match.status === 'scheduled' && isUpcomingMatch(match))
     .sort((left, right) => left.date.localeCompare(right.date))[0]
@@ -47,6 +47,19 @@ export default function HomePage() {
           </div>
         ))}
       </div>
+
+      {matchTableUrl && <section className={`${panelClass} mb-8 overflow-hidden`}>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-sm bg-sky-50 text-sky-800"><Trophy size={18} /></span>
+            <div><p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-sky-800">League standings</p><h2 className="font-display text-2xl font-bold text-slate-950">Match table</h2></div>
+          </div>
+          <span className="rounded-sm bg-lime-100 px-2.5 py-1.5 text-[9px] font-extrabold uppercase tracking-[0.12em] text-lime-900">Official table</span>
+        </div>
+        <div className="bg-slate-950 p-3 sm:p-5">
+          <img className="mx-auto max-h-[75vh] w-full rounded-sm bg-white object-contain" src={matchTableUrl} alt={`${leagueName} match table`} />
+        </div>
+      </section>}
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.85fr)]">
         <div className="space-y-5">

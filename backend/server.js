@@ -20,16 +20,20 @@ const matchExpiryFormatter = new Intl.DateTimeFormat('en-GB', {
   minute: '2-digit',
   hourCycle: 'h23',
 })
-const logoUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
-  fileFilter: (_request, file, callback) => {
-    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.mimetype)) {
-      return callback(new Error('Upload a JPG, PNG, WebP, or GIF image.'))
-    }
-    callback(null, true)
-  },
-}).single('logo')
+function createImageUpload(fieldName) {
+  return multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+    fileFilter: (_request, file, callback) => {
+      if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.mimetype)) {
+        return callback(new Error('Upload a JPG, PNG, WebP, or GIF image.'))
+      }
+      callback(null, true)
+    },
+  }).single(fieldName)
+}
+const logoUpload = createImageUpload('logo')
+const matchTableUpload = createImageUpload('image')
 const jwtSecret = process.env.JWT_SECRET || crypto.randomBytes(48).toString('hex')
 const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/local_football_league'
 const frontendOrigins = String(process.env.FRONTEND_ORIGINS || 'https://big-boys-fc.vercel.app,http://127.0.0.1:5174,http://localhost:5174')
@@ -112,6 +116,8 @@ const leagueCapacitySchema = new mongoose.Schema({
 const leagueSettingsSchema = new mongoose.Schema({
   _id: { type: String, default: 'global' },
   leagueName: { type: String, required: true, trim: true, maxlength: 100 },
+  matchTableUrl: { type: String, default: '' },
+  matchTablePublicId: { type: String, default: '' },
 }, { timestamps: true, versionKey: false })
 const invitationSchema = new mongoose.Schema({
   name: { type: String, required: true, maxlength: 80 },
@@ -236,21 +242,26 @@ function safeRegistration(registration) {
   }
 }
 
-function parseLogoUpload(request, response, next) {
-  logoUpload(request, response, (error) => {
-    if (error) {
-      const status = error instanceof multer.MulterError ? 400 : 415
-      return response.status(status).json({ error: error.message })
-    }
-    next()
-  })
+function parseImageUpload(uploadMiddleware) {
+  return (request, response, next) => {
+    uploadMiddleware(request, response, (error) => {
+      if (error) {
+        const status = error instanceof multer.MulterError ? 400 : 415
+        return response.status(status).json({ error: error.message })
+      }
+      next()
+    })
+  }
 }
+
+const parseLogoUpload = parseImageUpload(logoUpload)
+const parseMatchTableUpload = parseImageUpload(matchTableUpload)
 
 function requireCloudinaryConfig() {
   if (process.env.CLOUDINARY_URL) {
     const config = cloudinary.config(true)
     if (!config.cloud_name || !config.api_key || !config.api_secret) {
-      throw new Error('Team logo uploads are not configured. Set CLOUDINARY_URL or the three Cloudinary environment variables.')
+      throw new Error('Image uploads are not configured. Set CLOUDINARY_URL or the three Cloudinary environment variables.')
     }
     cloudinary.config({ secure: true })
     return
@@ -258,7 +269,7 @@ function requireCloudinaryConfig() {
 
   const { CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET } = process.env
   if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
-    throw new Error('Team logo uploads are not configured. Set CLOUDINARY_URL or the three Cloudinary environment variables.')
+    throw new Error('Image uploads are not configured. Set CLOUDINARY_URL or the three Cloudinary environment variables.')
   }
   cloudinary.config({
     cloud_name: CLOUDINARY_CLOUD_NAME,
@@ -268,25 +279,35 @@ function requireCloudinaryConfig() {
   })
 }
 
-function uploadTeamLogo(file) {
+function uploadCloudinaryImage(file, folder) {
   requireCloudinaryConfig()
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream({
-      folder: 'local-football-league/team-logos',
+      folder,
       resource_type: 'image',
     }, (error, result) => {
       if (error) return reject(error)
-      resolve({ logoUrl: result.secure_url, logoPublicId: result.public_id })
+      resolve({ secureUrl: result.secure_url, publicId: result.public_id })
     })
     stream.end(file.buffer)
   })
 }
 
+async function deleteCloudinaryImage(publicId) {
+  if (!publicId) return
+  requireCloudinaryConfig()
+  const result = await cloudinary.uploader.destroy(publicId, { resource_type: 'image' })
+  if (!['ok', 'not found'].includes(result.result)) throw new Error('Cloudinary could not delete the image.')
+}
+
+function uploadTeamLogo(file) {
+  return uploadCloudinaryImage(file, 'local-football-league/team-logos')
+    .then(({ secureUrl, publicId }) => ({ logoUrl: secureUrl, logoPublicId: publicId }))
+}
+
 async function deleteTeamLogo(registration) {
   if (!registration.logoPublicId) return
-  requireCloudinaryConfig()
-  const result = await cloudinary.uploader.destroy(registration.logoPublicId, { resource_type: 'image' })
-  if (!['ok', 'not found'].includes(result.result)) throw new Error('Cloudinary could not delete the team logo.')
+  await deleteCloudinaryImage(registration.logoPublicId)
   registration.logoUrl = ''
   registration.logoPublicId = ''
   await registration.save()
@@ -643,8 +664,8 @@ app.get('/api/teams', databaseReady, async (request, response) => {
 })
 
 app.get('/api/league-settings', databaseReady, async (request, response) => {
-  const settings = await LeagueSettings.findById('global').select('leagueName').lean()
-  response.json({ leagueName: settings?.leagueName || 'Big Boyz FC' })
+  const settings = await LeagueSettings.findById('global').select('leagueName matchTableUrl').lean()
+  response.json({ leagueName: settings?.leagueName || 'Big Boyz FC', matchTableUrl: settings?.matchTableUrl || '' })
 })
 
 app.put('/api/admin/league-settings', databaseReady, authenticate, administratorOnly, async (request, response) => {
@@ -660,6 +681,75 @@ app.put('/api/admin/league-settings', databaseReady, authenticate, administrator
     setDefaultsOnInsert: true,
   }).lean()
   return response.json({ leagueName: settings.leagueName })
+})
+
+app.post('/api/admin/match-table', databaseReady, authenticate, administratorOnly, parseMatchTableUpload, async (request, response) => {
+  if (!request.file) return response.status(400).json({ error: 'Choose a match table image to upload.' })
+
+  let uploadedImage
+  try {
+    uploadedImage = await uploadCloudinaryImage(request.file, 'local-football-league/match-tables')
+  } catch (error) {
+    console.error('Match table image upload failed:', error.message)
+    const notConfigured = error.message.startsWith('Image uploads are not configured')
+    return response.status(notConfigured ? 503 : 502).json({
+      error: notConfigured
+        ? error.message
+        : 'Cloudinary could not upload the match table image. Check the Cloudinary configuration and try again.',
+    })
+  }
+
+  const previousSettings = await LeagueSettings.findById('global').select('matchTablePublicId').lean()
+  let settings
+  try {
+    settings = await LeagueSettings.findByIdAndUpdate('global', {
+      $set: { matchTableUrl: uploadedImage.secureUrl, matchTablePublicId: uploadedImage.publicId },
+      $setOnInsert: { leagueName: 'Big Boyz FC' },
+    }, {
+      upsert: true,
+      returnDocument: 'after',
+      runValidators: true,
+      setDefaultsOnInsert: true,
+    }).lean()
+  } catch (error) {
+    try {
+      await deleteCloudinaryImage(uploadedImage.publicId)
+    } catch (cleanupError) {
+      console.error('Unpublished match table image cleanup failed:', cleanupError.message)
+    }
+    throw error
+  }
+
+  let warning = ''
+  if (previousSettings?.matchTablePublicId) {
+    try {
+      await deleteCloudinaryImage(previousSettings.matchTablePublicId)
+    } catch (error) {
+      console.error('Previous match table image cleanup failed:', error.message)
+      warning = 'The new image is live, but the previous image could not be removed from Cloudinary.'
+    }
+  }
+  return response.json({ matchTableUrl: settings.matchTableUrl, warning })
+})
+
+app.delete('/api/admin/match-table', databaseReady, authenticate, administratorOnly, async (request, response) => {
+  const previousSettings = await LeagueSettings.findById('global').select('matchTablePublicId').lean()
+  if (!previousSettings) return response.json({ matchTableUrl: '', warning: '' })
+
+  await LeagueSettings.findByIdAndUpdate('global', {
+    $set: { matchTableUrl: '', matchTablePublicId: '' },
+  }, { runValidators: true })
+
+  let warning = ''
+  if (previousSettings.matchTablePublicId) {
+    try {
+      await deleteCloudinaryImage(previousSettings.matchTablePublicId)
+    } catch (error) {
+      console.error('Match table image cleanup failed:', error.message)
+      warning = 'The image was removed from the website, but Cloudinary could not delete the stored file.'
+    }
+  }
+  return response.json({ matchTableUrl: '', warning })
 })
 
 app.get('/api/admin/registrations', databaseReady, authenticate, administratorOnly, async (request, response) => {

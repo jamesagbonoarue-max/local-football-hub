@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Check, MailPlus, Newspaper, Plus, RefreshCw, Shield, Trash2, UsersRound } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Check, ImagePlus, MailPlus, Newspaper, Plus, RefreshCw, Shield, Trash2, Upload, UsersRound } from 'lucide-react'
 import { useLeague } from '../context/useLeague.js'
 import { apiRequest } from '../context/authApi.js'
 import { EmptyState, fieldClass, labelClass, MatchListItem, PageHeading, panelClass, TeamIdentity } from '../components/ui.jsx'
@@ -23,7 +23,10 @@ async function loadAdminAccessLists() {
 export default function AdminPage() {
   const {
     leagueName,
+    matchTableUrl,
     setLeagueName,
+    uploadMatchTable,
+    removeMatchTable,
     matches,
     addMatch,
     updateMatch,
@@ -49,6 +52,10 @@ export default function AdminPage() {
   const [updateForm, setUpdateForm] = useState(newUpdate)
   const [notice, setNotice] = useState('')
   const [leagueError, setLeagueError] = useState('')
+  const [matchTableFile, setMatchTableFile] = useState(null)
+  const [matchTableError, setMatchTableError] = useState('')
+  const [matchTableBusy, setMatchTableBusy] = useState(false)
+  const matchTableInputRef = useRef(null)
   const [invitationForm, setInvitationForm] = useState({ name: '', email: '' })
   const [invitations, setInvitations] = useState([])
   const [administrators, setAdministrators] = useState([])
@@ -132,6 +139,45 @@ export default function AdminPage() {
       setNameInputOverride(null)
     } catch (error) {
       setLeagueError(error.message)
+    }
+  }
+
+  async function saveMatchTable(event) {
+    event.preventDefault()
+    setMatchTableError('')
+    if (!matchTableFile) {
+      setMatchTableError('Choose a match table image to upload.')
+      return
+    }
+
+    const form = event.currentTarget
+    const formData = new FormData()
+    formData.append('image', matchTableFile)
+    setMatchTableBusy(true)
+    try {
+      const result = await uploadMatchTable(formData)
+      setMatchTableFile(null)
+      form.reset()
+      setNotice(result.warning || 'Match table image uploaded and published to the overview.')
+    } catch (error) {
+      setMatchTableError(error.message)
+    } finally {
+      setMatchTableBusy(false)
+    }
+  }
+
+  async function deleteMatchTable() {
+    setMatchTableError('')
+    setMatchTableBusy(true)
+    try {
+      const result = await removeMatchTable()
+      setMatchTableFile(null)
+      if (matchTableInputRef.current) matchTableInputRef.current.value = ''
+      setNotice(result.warning || 'Match table image removed from the overview.')
+    } catch (error) {
+      setMatchTableError(error.message)
+    } finally {
+      setMatchTableBusy(false)
     }
   }
 
@@ -289,7 +335,7 @@ export default function AdminPage() {
       <PageHeading eyebrow="League office" title="Admin" description="Manage the public league schedule, announcements and team directory." />
       <div className="mb-6 flex items-start gap-3 rounded-sm border border-amber-200 bg-amber-50 p-4 text-amber-950">
         <Shield size={17} className="mt-0.5 shrink-0" />
-        <p className="text-xs leading-5"><strong>Administrator access verified.</strong> Matches, results, league updates, team registrations and approvals are shared through MongoDB. League name edits are local to this browser.</p>
+        <p className="text-xs leading-5"><strong>Administrator access verified.</strong> Matches, results, league updates, team registrations, league settings and approvals are shared through MongoDB. Match table images are hosted on Cloudinary.</p>
       </div>
       {notice && <p className="mb-5 rounded-sm border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-900" role="status">{notice}</p>}
 
@@ -318,6 +364,34 @@ export default function AdminPage() {
           <button className="min-h-10 rounded-sm bg-slate-900 px-5 text-xs font-bold text-white hover:bg-slate-800" type="submit">Save league name</button>
         </form>
         {leagueError && <p className="mt-3 rounded-sm border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-semibold text-rose-800" role="alert">{leagueError}</p>}
+      </section>
+
+      <section className={`${panelClass} mb-5 overflow-hidden`}>
+        <div className="border-b border-slate-200 p-5 sm:px-6">
+          <div className="flex items-center gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-sm bg-sky-50 text-sky-800"><ImagePlus size={18} /></span>
+            <div><p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-sky-800">Overview content</p><h2 className="mt-0.5 font-display text-2xl font-bold text-slate-950">Match table image</h2></div>
+          </div>
+          <p className="mt-3 max-w-2xl text-xs leading-5 text-slate-500">Upload a JPG, PNG, WebP, or GIF (up to 5 MB). The image is stored in Cloudinary and shown to everyone on the overview page.</p>
+        </div>
+        <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.8fr)]">
+          <div>
+            {matchTableError && <p className="mb-4 rounded-sm border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-semibold text-rose-800" role="alert">{matchTableError}</p>}
+            <form className="space-y-3" onSubmit={saveMatchTable}>
+              <label className={labelClass}>Choose image<input ref={matchTableInputRef} className={fieldClass} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => setMatchTableFile(event.target.files[0] || null)} required /></label>
+              {matchTableFile && <p className="text-xs text-slate-500">Selected: {matchTableFile.name}</p>}
+              <div className="flex flex-wrap gap-2">
+                <button className="inline-flex min-h-10 items-center gap-2 rounded-sm bg-sky-800 px-4 text-xs font-extrabold text-white hover:bg-sky-900 disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={!matchTableFile || matchTableBusy}><Upload size={15} />{matchTableBusy ? 'Working…' : 'Upload and publish'}</button>
+                {matchTableUrl && <button className="inline-flex min-h-10 items-center gap-2 rounded-sm border border-rose-200 px-4 text-xs font-bold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50" type="button" onClick={deleteMatchTable} disabled={matchTableBusy}><Trash2 size={14} />Remove image</button>}
+              </div>
+            </form>
+          </div>
+          <div className="flex min-h-44 items-center justify-center overflow-hidden rounded-sm border border-slate-200 bg-slate-950 p-3">
+            {matchTableUrl
+              ? <img className="max-h-80 w-full object-contain" src={matchTableUrl} alt="Current match table image" />
+              : <div className="px-4 py-8 text-center"><ImagePlus className="mx-auto text-slate-500" size={28} /><p className="mt-3 text-xs font-semibold text-slate-300">No match table image published</p><p className="mt-1 text-[10px] text-slate-500">Upload an image to add it to the overview.</p></div>}
+          </div>
+        </div>
       </section>
 
       <div className="grid items-start gap-5 xl:grid-cols-2">

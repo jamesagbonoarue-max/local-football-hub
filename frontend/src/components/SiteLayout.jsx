@@ -56,7 +56,10 @@ export default function SiteLayout() {
               ))}
               {user.role === 'admin' && <NavLink to="/admin" onClick={() => setMenuOpen(false)} className={({ isActive }) => `ml-0 mt-1 flex min-h-10 items-center gap-2 rounded-sm px-3 text-xs font-bold transition md:ml-2 md:mt-0 ${isActive ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}><Shield size={15} />Admin</NavLink>}
               <div className="ml-0 mt-1 flex min-h-10 items-center gap-2 border-t border-slate-100 pt-2 md:ml-2 md:mt-0 md:border-0 md:pt-0">
-                <span className="max-w-28 truncate px-2 text-[10px] font-bold text-slate-500">{user.name}</span>
+                <span className="flex min-w-0 items-center gap-2 px-2" aria-label={`Signed in as ${user.name}, ${user.role}`}>
+                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-sky-100 text-[11px] font-extrabold text-sky-900">{user.name.trim().charAt(0).toUpperCase()}</span>
+                  <span className="min-w-0"><span className="block max-w-28 truncate text-[10px] font-bold text-slate-800">{user.name}</span><span className="block text-[9px] font-semibold uppercase tracking-wide text-slate-500">{user.role === 'admin' ? 'Administrator' : 'Member'}</span></span>
+                </span>
                 <button className="inline-flex min-h-9 items-center gap-1.5 rounded-sm border border-slate-200 px-3 text-xs font-bold text-slate-700 hover:bg-slate-50" type="button" onClick={() => { logout(); setMenuOpen(false) }}><LogOut size={14} />Log out</button>
               </div>
             </nav>

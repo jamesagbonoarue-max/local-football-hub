@@ -4,6 +4,7 @@ import { apiRequest } from './authApi.js'
 
 const emptyLeague = {
   leagueName: 'Big Boyz FC',
+  matchTableUrl: '',
   matches: [],
   updates: [],
   teams: [],
@@ -30,6 +31,7 @@ export function LeagueProvider({ children }) {
         if (active) setLeague((current) => ({
           ...current,
           leagueName: settingsResult.leagueName,
+          matchTableUrl: settingsResult.matchTableUrl,
           matches: matchResult.matches,
           teams: teamResult.teams,
           updates: updateResult.updates,
@@ -62,6 +64,16 @@ export function LeagueProvider({ children }) {
       const result = await apiRequest('/api/admin/league-settings', { method: 'PUT', body: { leagueName: name } })
       setLeague((current) => ({ ...current, leagueName: result.leagueName }))
       return result.leagueName
+    },
+    uploadMatchTable: async (formData) => {
+      const result = await apiRequest('/api/admin/match-table', { method: 'POST', body: formData })
+      setLeague((current) => ({ ...current, matchTableUrl: result.matchTableUrl }))
+      return result
+    },
+    removeMatchTable: async () => {
+      const result = await apiRequest('/api/admin/match-table', { method: 'DELETE' })
+      setLeague((current) => ({ ...current, matchTableUrl: result.matchTableUrl }))
+      return result
     },
     addMatch: async (match) => {
       const result = await apiRequest('/api/admin/matches', { method: 'POST', body: match })
