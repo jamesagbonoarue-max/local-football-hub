@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react'
 import { AuthContext } from './authContext.js'
-import { apiRequest, clearSessionToken, getSessionToken, saveSessionToken } from './authApi.js'
+import { apiRequest, clearSessionToken, getSessionToken, getSessionUser, saveSessionToken } from './authApi.js'
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(() => Boolean(getSessionToken()))
+  // Restore the saved session immediately; the API still verifies it in the background.
+  const [user, setUser] = useState(() => {
+    const token = getSessionToken()
+    return token ? getSessionUser(token) : null
+  })
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -13,7 +17,11 @@ export function AuthProvider({ children }) {
 
     apiRequest('/api/auth/me', { token })
       .then((result) => { if (active) setUser(result.user) })
-      .catch(clearSessionToken)
+      .catch((error) => {
+        if (!active || ![401, 403].includes(error.status)) return
+        clearSessionToken()
+        setUser(null)
+      })
       .finally(() => { if (active) setLoading(false) })
 
     return () => { active = false }

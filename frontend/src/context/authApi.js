@@ -5,6 +5,30 @@ export function getSessionToken() {
   return window.localStorage.getItem(SESSION_KEY) || window.sessionStorage.getItem(SESSION_KEY)
 }
 
+export function getSessionUser(token) {
+  try {
+    const payload = token.split('.')[1]
+    if (!payload) return null
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const binary = window.atob(base64)
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0))
+    const claims = JSON.parse(new TextDecoder().decode(bytes))
+    if (
+      !claims ||
+      typeof claims.id !== 'string' ||
+      typeof claims.name !== 'string' ||
+      typeof claims.email !== 'string' ||
+      !['admin', 'user'].includes(claims.role) ||
+      !Number.isFinite(claims.exp) ||
+      claims.exp * 1000 <= Date.now()
+    ) return null
+
+    return { id: claims.id, name: claims.name, email: claims.email, role: claims.role }
+  } catch {
+    return null
+  }
+}
+
 export function saveSessionToken(token, rememberMe) {
   window.localStorage.removeItem(SESSION_KEY)
   window.sessionStorage.removeItem(SESSION_KEY)
@@ -28,6 +52,10 @@ export async function apiRequest(path, { method = 'GET', body, token } = {}) {
     ...(body ? { body: (body instanceof FormData ? body : JSON.stringify(body)) } : {}),
   })
   const result = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(result.error || 'Unable to complete the request.')
+  if (!response.ok) {
+    const error = new Error(result.error || 'Unable to complete the request.')
+    error.status = response.status
+    throw error
+  }
   return result
 }
