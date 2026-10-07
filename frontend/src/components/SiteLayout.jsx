@@ -4,7 +4,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useLeague } from '../context/useLeague.js'
 import { useAuth } from '../context/useAuth.js'
 
-const leagueLogoUrl = 'https://big-boyz-fc-website-updated.vercel.app/logo.png'
+const leagueLogoUrl = '/big-boyz-fc-logo.png'
 
 const links = [
   { label: 'Overview', to: '/', icon: Home, end: true },
@@ -37,7 +37,7 @@ export default function SiteLayout() {
             {logoError ? (
               <span className="grid size-10 shrink-0 place-items-center rounded-sm bg-sky-800 font-display text-lg font-bold text-white">BB</span>
             ) : (
-              <img className="size-10 shrink-0 rounded-sm border border-slate-200 object-cover" src={leagueLogoUrl} alt={`${leagueName} logo`} onError={() => setLogoError(true)} />
+              <img className="size-10 shrink-0 rounded-sm border border-slate-200 bg-slate-950 object-contain" src={leagueLogoUrl} alt={`${leagueName} logo`} onError={() => setLogoError(true)} />
             )}
             <span className="min-w-0">
               <strong className="block max-w-48 truncate text-sm font-extrabold text-slate-950 sm:max-w-64">{leagueName}</strong>
