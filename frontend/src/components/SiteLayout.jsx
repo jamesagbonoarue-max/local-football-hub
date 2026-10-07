@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CalendarDays, ClipboardList, Home, LogOut, Menu, Shield, UsersRound, X } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useLeague } from '../context/useLeague.js'
 import { useAuth } from '../context/useAuth.js'
+
+const leagueLogoUrl = 'https://big-boyz-fc-website-updated.vercel.app/logo.png'
 
 const links = [
   { label: 'Overview', to: '/', icon: Home, end: true },
@@ -15,6 +17,12 @@ export default function SiteLayout() {
   const { leagueName } = useLeague()
   const { user, logout } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [logoError, setLogoError] = useState(false)
+
+  useEffect(() => {
+    document.title = `${leagueName} | Football Hub`
+  }, [leagueName])
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
       <div className="bg-slate-950 text-slate-300">
@@ -26,10 +34,14 @@ export default function SiteLayout() {
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white">
         <div className="mx-auto flex min-h-[72px] max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <NavLink className="flex min-w-0 items-center gap-3" to="/" aria-label={`${leagueName} home`} onClick={() => setMenuOpen(false)}>
-            <span className="grid size-10 shrink-0 place-items-center rounded-sm bg-sky-800 font-display text-xl font-bold text-white">L</span>
+            {logoError ? (
+              <span className="grid size-10 shrink-0 place-items-center rounded-sm bg-sky-800 font-display text-lg font-bold text-white">BB</span>
+            ) : (
+              <img className="size-10 shrink-0 rounded-sm border border-slate-200 object-cover" src={leagueLogoUrl} alt={`${leagueName} logo`} onError={() => setLogoError(true)} />
+            )}
             <span className="min-w-0">
               <strong className="block max-w-48 truncate text-sm font-extrabold text-slate-950 sm:max-w-64">{leagueName}</strong>
-              <span className="mt-0.5 block text-[9px] font-bold uppercase tracking-[0.17em] text-slate-500">Local football league</span>
+              <span className="mt-0.5 block text-[9px] font-bold uppercase tracking-[0.17em] text-slate-500">Football hub</span>
             </span>
           </NavLink>
           {user && <>

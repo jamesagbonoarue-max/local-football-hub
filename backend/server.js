@@ -421,7 +421,7 @@ function renderEmailHtml({ preheader, title, greeting, message, details = [], ac
 async function sendEmail({ to, subject, text, html }) {
   const apiKey = process.env.BREVO_API_KEY
   const senderEmail = process.env.BREVO_SENDER_EMAIL
-  const senderName = process.env.BREVO_SENDER_NAME || 'Local Football League'
+  const senderName = process.env.BREVO_SENDER_NAME || 'Big Boyz FC'
   if (!apiKey || !senderEmail) {
     throw new Error('Email delivery is not configured. Set BREVO_API_KEY and BREVO_SENDER_EMAIL.')
   }
@@ -644,7 +644,7 @@ app.get('/api/teams', databaseReady, async (request, response) => {
 
 app.get('/api/league-settings', databaseReady, async (request, response) => {
   const settings = await LeagueSettings.findById('global').select('leagueName').lean()
-  response.json({ leagueName: settings?.leagueName || 'Local Football League' })
+  response.json({ leagueName: settings?.leagueName || 'Big Boyz FC' })
 })
 
 app.put('/api/admin/league-settings', databaseReady, authenticate, administratorOnly, async (request, response) => {

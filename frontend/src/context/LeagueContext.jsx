@@ -3,7 +3,7 @@ import { LeagueContext } from './leagueContext.js'
 import { apiRequest } from './authApi.js'
 
 const emptyLeague = {
-  leagueName: 'Local Football League',
+  leagueName: 'Big Boyz FC',
   matches: [],
   updates: [],
   teams: [],
