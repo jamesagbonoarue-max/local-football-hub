@@ -102,6 +102,10 @@ const leagueSettingsSchema = new mongoose.Schema({
   matchTablePublicId: { type: String, default: '' },
   overviewScheduleUrl: { type: String, default: '' },
   overviewSchedulePublicId: { type: String, default: '' },
+  overviewMatchesUrl: { type: String, default: '' },
+  overviewMatchesPublicId: { type: String, default: '' },
+  overviewResultsUrl: { type: String, default: '' },
+  overviewResultsPublicId: { type: String, default: '' },
 }, { timestamps: true, versionKey: false })
 const invitationSchema = new mongoose.Schema({
   name: { type: String, required: true, maxlength: 80 },
@@ -630,11 +634,15 @@ app.get('/api/teams', databaseReady, async (request, response) => {
 })
 
 app.get('/api/league-settings', databaseReady, async (request, response) => {
-  const settings = await LeagueSettings.findById('global').select('leagueName matchTableUrl overviewScheduleUrl').lean()
+  const settings = await LeagueSettings.findById('global')
+    .select('leagueName matchTableUrl overviewScheduleUrl overviewMatchesUrl overviewResultsUrl')
+    .lean()
   response.json({
     leagueName: settings?.leagueName || 'Big Boyz FC',
     matchTableUrl: settings?.matchTableUrl || '',
-    overviewScheduleUrl: settings?.overviewScheduleUrl || '',
+    overviewMatchesUrl: settings?.overviewMatchesUrl || settings?.overviewScheduleUrl || '',
+    overviewResultsUrl: settings?.overviewResultsUrl || '',
+    overviewScheduleUrl: settings?.overviewMatchesUrl || settings?.overviewScheduleUrl || '',
   })
 })
 
@@ -792,6 +800,128 @@ app.delete('/api/admin/overview-schedule', databaseReady, authenticate, administ
     }
   }
   return response.json({ overviewScheduleUrl: '', warning })
+})
+
+const overviewImageSettings = {
+  matches: {
+    urlField: 'overviewMatchesUrl',
+    publicIdField: 'overviewMatchesPublicId',
+    legacyUrlField: 'overviewScheduleUrl',
+    legacyPublicIdField: 'overviewSchedulePublicId',
+    folder: 'overview-matches',
+    label: 'match image',
+  },
+  results: {
+    urlField: 'overviewResultsUrl',
+    publicIdField: 'overviewResultsPublicId',
+    folder: 'overview-results',
+    label: 'result image',
+  },
+}
+
+app.post('/api/admin/overview-images/:type', databaseReady, authenticate, administratorOnly, parseMatchTableUpload, async (request, response) => {
+  const imageSettings = Object.hasOwn(overviewImageSettings, request.params.type)
+    ? overviewImageSettings[request.params.type]
+    : null
+  if (!imageSettings) return response.status(404).json({ error: 'Choose matches or results for the overview image.' })
+  if (!request.file) return response.status(400).json({ error: `Choose a ${imageSettings.label} to upload.` })
+
+  let uploadedImage
+  try {
+    uploadedImage = await uploadCloudinaryImage(request.file, `local-football-league/${imageSettings.folder}`)
+  } catch (error) {
+    console.error(`Overview ${imageSettings.label} upload failed:`, error.message)
+    const notConfigured = error.message.startsWith('Image uploads are not configured')
+    return response.status(notConfigured ? 503 : 502).json({
+      error: notConfigured
+        ? error.message
+        : `Cloudinary could not upload the ${imageSettings.label}. Check the Cloudinary configuration and try again.`,
+    })
+  }
+
+  const selectFields = [imageSettings.publicIdField]
+  if (imageSettings.legacyPublicIdField) selectFields.push(imageSettings.legacyPublicIdField)
+  const previousSettings = await LeagueSettings.findById('global').select(selectFields.join(' ')).lean()
+  const updates = {
+    [imageSettings.urlField]: uploadedImage.secureUrl,
+    [imageSettings.publicIdField]: uploadedImage.publicId,
+  }
+  if (imageSettings.legacyUrlField) {
+    updates[imageSettings.legacyUrlField] = ''
+    updates[imageSettings.legacyPublicIdField] = ''
+  }
+
+  let settings
+  try {
+    settings = await LeagueSettings.findByIdAndUpdate('global', {
+      $set: updates,
+      $setOnInsert: { leagueName: 'Big Boyz FC' },
+    }, {
+      upsert: true,
+      returnDocument: 'after',
+      runValidators: true,
+      setDefaultsOnInsert: true,
+    }).lean()
+  } catch (error) {
+    try {
+      await deleteCloudinaryImage(uploadedImage.publicId)
+    } catch (cleanupError) {
+      console.error(`Unpublished overview ${imageSettings.label} cleanup failed:`, cleanupError.message)
+    }
+    throw error
+  }
+
+  const previousPublicIds = new Set([
+    previousSettings?.[imageSettings.publicIdField],
+    imageSettings.legacyPublicIdField && previousSettings?.[imageSettings.legacyPublicIdField],
+  ].filter(Boolean))
+  let warning = ''
+  for (const publicId of previousPublicIds) {
+    try {
+      await deleteCloudinaryImage(publicId)
+    } catch (error) {
+      console.error(`Previous overview ${imageSettings.label} cleanup failed:`, error.message)
+      warning = 'The new image is live, but the previous image could not be removed from Cloudinary.'
+    }
+  }
+  return response.json({ [imageSettings.urlField]: settings[imageSettings.urlField], warning })
+})
+
+app.delete('/api/admin/overview-images/:type', databaseReady, authenticate, administratorOnly, async (request, response) => {
+  const imageSettings = Object.hasOwn(overviewImageSettings, request.params.type)
+    ? overviewImageSettings[request.params.type]
+    : null
+  if (!imageSettings) return response.status(404).json({ error: 'Choose matches or results for the overview image.' })
+
+  const selectFields = [imageSettings.publicIdField]
+  if (imageSettings.legacyPublicIdField) selectFields.push(imageSettings.legacyPublicIdField)
+  const previousSettings = await LeagueSettings.findById('global').select(selectFields.join(' ')).lean()
+  if (!previousSettings) return response.json({ [imageSettings.urlField]: '', warning: '' })
+
+  const updates = {
+    [imageSettings.urlField]: '',
+    [imageSettings.publicIdField]: '',
+  }
+  if (imageSettings.legacyUrlField) {
+    updates[imageSettings.legacyUrlField] = ''
+    updates[imageSettings.legacyPublicIdField] = ''
+  }
+  await LeagueSettings.findByIdAndUpdate('global', { $set: updates }, { runValidators: true })
+
+  const previousPublicIds = new Set([
+    previousSettings[imageSettings.publicIdField],
+    imageSettings.legacyPublicIdField && previousSettings[imageSettings.legacyPublicIdField],
+  ].filter(Boolean))
+  let warning = ''
+  for (const publicId of previousPublicIds) {
+    try {
+      await deleteCloudinaryImage(publicId)
+    } catch (error) {
+      console.error(`Overview ${imageSettings.label} cleanup failed:`, error.message)
+      warning = 'The image was removed from the website, but Cloudinary could not delete the stored file.'
+    }
+  }
+  return response.json({ [imageSettings.urlField]: '', warning })
 })
 
 app.get('/api/admin/registrations', databaseReady, authenticate, administratorOnly, async (request, response) => {

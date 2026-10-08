@@ -5,7 +5,8 @@ import { apiRequest } from './authApi.js'
 const emptyLeague = {
   leagueName: 'Big Boyz FC',
   matchTableUrl: '',
-  overviewScheduleUrl: '',
+  overviewMatchesUrl: '',
+  overviewResultsUrl: '',
   matches: [],
   updates: [],
   teams: [],
@@ -33,7 +34,8 @@ export function LeagueProvider({ children }) {
           ...current,
           leagueName: settingsResult.leagueName,
           matchTableUrl: settingsResult.matchTableUrl,
-          overviewScheduleUrl: settingsResult.overviewScheduleUrl || '',
+          overviewMatchesUrl: settingsResult.overviewMatchesUrl || settingsResult.overviewScheduleUrl || '',
+          overviewResultsUrl: settingsResult.overviewResultsUrl || '',
           matches: matchResult.matches,
           teams: teamResult.teams,
           updates: updateResult.updates,
@@ -77,14 +79,18 @@ export function LeagueProvider({ children }) {
       setLeague((current) => ({ ...current, matchTableUrl: result.matchTableUrl }))
       return result
     },
-    uploadOverviewSchedule: async (formData) => {
-      const result = await apiRequest('/api/admin/overview-schedule', { method: 'POST', body: formData })
-      setLeague((current) => ({ ...current, overviewScheduleUrl: result.overviewScheduleUrl }))
+    uploadOverviewImage: async (type, formData) => {
+      if (!['matches', 'results'].includes(type)) throw new Error('Choose matches or results for the overview image.')
+      const result = await apiRequest(`/api/admin/overview-images/${type}`, { method: 'POST', body: formData })
+      const field = type === 'matches' ? 'overviewMatchesUrl' : 'overviewResultsUrl'
+      setLeague((current) => ({ ...current, [field]: result[field] }))
       return result
     },
-    removeOverviewSchedule: async () => {
-      const result = await apiRequest('/api/admin/overview-schedule', { method: 'DELETE' })
-      setLeague((current) => ({ ...current, overviewScheduleUrl: result.overviewScheduleUrl }))
+    removeOverviewImage: async (type) => {
+      if (!['matches', 'results'].includes(type)) throw new Error('Choose matches or results for the overview image.')
+      const result = await apiRequest(`/api/admin/overview-images/${type}`, { method: 'DELETE' })
+      const field = type === 'matches' ? 'overviewMatchesUrl' : 'overviewResultsUrl'
+      setLeague((current) => ({ ...current, [field]: result[field] }))
       return result
     },
     addMatch: async (match) => {
