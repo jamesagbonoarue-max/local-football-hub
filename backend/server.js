@@ -162,7 +162,9 @@ function decryptSecret(value) {
 }
 
 function safeUser(account, role = account.role) {
-  return { id: account._id.toString(), name: account.name, email: account.email, role }
+  const email = String(account.email || '')
+  const name = String(account.name || '').trim() || email.split('@')[0] || 'Member'
+  return { id: account._id.toString(), name, email, role }
 }
 
 function safeMatch(match) {
@@ -328,7 +330,7 @@ async function authenticate(request, response, next) {
 
   try {
     const claims = jwt.verify(token, jwtSecret)
-    const account = await Account.findById(claims.id).select('_id role').lean()
+    const account = await Account.findById(claims.id).select('_id name email role').lean()
     if (!account) return response.status(401).json({ error: 'Account not found.' })
     if (claims.role === 'admin' && account.role !== 'admin') {
       return response.status(403).json({ error: 'Administrator access is required.' })
