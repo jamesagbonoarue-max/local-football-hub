@@ -326,8 +326,8 @@ export default function AdminPage() {
     }
   }
 
-  const orderedMatches = [...matches].sort((left, right) => left.date.localeCompare(right.date))
-  const orderedUpdates = [...updates].sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+  const orderedMatches = [...matches].sort((left, right) => String(left.date || '').localeCompare(String(right.date || '')))
+  const orderedUpdates = [...updates].sort((left, right) => String(right.createdAt || '').localeCompare(String(left.createdAt || '')))
   const selectedLogoRegistration = registrations.find((registration) => registration.id === logoRegistrationId)
 
   return (

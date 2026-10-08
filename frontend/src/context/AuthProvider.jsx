@@ -9,6 +9,7 @@ export function AuthProvider({ children }) {
     return token ? getSessionUser(token) : null
   })
   const [loading, setLoading] = useState(false)
+  const [sessionNeedsLogin, setSessionNeedsLogin] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -20,7 +21,7 @@ export function AuthProvider({ children }) {
       .catch((error) => {
         if (!active || ![401, 403].includes(error.status)) return
         clearSessionToken()
-        setUser(null)
+        setSessionNeedsLogin(true)
       })
       .finally(() => { if (active) setLoading(false) })
 
@@ -31,6 +32,7 @@ export function AuthProvider({ children }) {
     const result = await apiRequest('/api/auth/login', { method: 'POST', body: credentials, token: '' })
     saveSessionToken(result.token, Boolean(credentials.rememberMe))
     setUser(result.user)
+    setSessionNeedsLogin(false)
     return result.user
   }
 
@@ -41,7 +43,8 @@ export function AuthProvider({ children }) {
   function logout() {
     clearSessionToken()
     setUser(null)
+    setSessionNeedsLogin(false)
   }
 
-  return <AuthContext.Provider value={{ user, loading, login, register, logout }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, loading, sessionNeedsLogin, login, register, logout }}>{children}</AuthContext.Provider>
 }

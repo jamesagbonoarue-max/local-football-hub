@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { CalendarDays, ClipboardList, Home, LogOut, Menu, Shield, UsersRound, X } from 'lucide-react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useLeague } from '../context/useLeague.js'
 import { useAuth } from '../context/useAuth.js'
 
@@ -15,7 +15,9 @@ const links = [
 
 export default function SiteLayout() {
   const { leagueName } = useLeague()
-  const { user, logout } = useAuth()
+  const { user, logout, sessionNeedsLogin } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const [logoError, setLogoError] = useState(false)
 
@@ -66,6 +68,12 @@ export default function SiteLayout() {
           </>}
         </div>
       </header>
+      {sessionNeedsLogin && <div className="border-b border-amber-200 bg-amber-50">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+          <p className="text-xs font-semibold leading-5 text-amber-950">Your saved sign-in could not be verified. The page will stay open, but administrator actions require signing in again.</p>
+          <button className="min-h-9 shrink-0 rounded-sm bg-amber-900 px-3 text-xs font-bold text-white hover:bg-amber-950" type="button" onClick={() => { logout(); navigate(`/login?next=${encodeURIComponent(location.pathname)}`) }}>Sign in again</button>
+        </div>
+      </div>}
       <main className="mx-auto min-h-[calc(100vh-168px)] max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
         <Outlet />
       </main>

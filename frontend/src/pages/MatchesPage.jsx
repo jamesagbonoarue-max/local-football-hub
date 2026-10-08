@@ -14,7 +14,7 @@ export default function MatchesPage() {
   const [filter, setFilter] = useState('all')
   const visibleMatches = [...matches]
     .filter((match) => filter === 'all' || match.status === filter)
-    .sort((left, right) => left.date.localeCompare(right.date))
+    .sort((left, right) => String(left.date || '').localeCompare(String(right.date || '')))
   const filterCounts = {
     all: matches.length,
     scheduled: matches.filter((match) => match.status === 'scheduled').length,

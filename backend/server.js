@@ -35,6 +35,9 @@ function createImageUpload(fieldName) {
 const logoUpload = createImageUpload('logo')
 const matchTableUpload = createImageUpload('image')
 const jwtSecret = process.env.JWT_SECRET || crypto.randomBytes(48).toString('hex')
+if (!process.env.JWT_SECRET && (process.env.NODE_ENV === 'production' || process.env.RENDER === 'true')) {
+  console.error('JWT_SECRET is not configured. Saved sessions will stop working after backend restarts; configure a persistent secret in the backend environment.')
+}
 const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/local_football_league'
 const frontendOrigins = String(process.env.FRONTEND_ORIGINS || 'https://big-boys-fc.vercel.app,http://127.0.0.1:5174,http://localhost:5174')
   .split(',')

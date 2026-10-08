@@ -7,7 +7,7 @@ export default function FixturesPage() {
   const { matches } = useLeague()
   const fixtures = [...matches]
     .filter((match) => match.status === 'scheduled' && isUpcomingMatch(match))
-    .sort((left, right) => left.date.localeCompare(right.date))
+    .sort((left, right) => String(left.date || '').localeCompare(String(right.date || '')))
 
   return (
     <>

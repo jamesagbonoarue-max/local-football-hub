@@ -10,9 +10,9 @@ export default function HomePage() {
   const { leagueName, matchTableUrl, matches, updates, teams } = useLeague()
   const nextFixture = [...matches]
     .filter((match) => match.status === 'scheduled' && isUpcomingMatch(match))
-    .sort((left, right) => left.date.localeCompare(right.date))[0]
-  const latestMatches = [...matches].sort((left, right) => right.date.localeCompare(left.date)).slice(0, 5)
-  const latestUpdates = [...updates].sort((left, right) => right.createdAt.localeCompare(left.createdAt)).slice(0, 3)
+    .sort((left, right) => String(left.date || '').localeCompare(String(right.date || '')))[0]
+  const latestMatches = [...matches].sort((left, right) => String(right.date || '').localeCompare(String(left.date || ''))).slice(0, 5)
+  const latestUpdates = [...updates].sort((left, right) => String(right.createdAt || '').localeCompare(String(left.createdAt || ''))).slice(0, 3)
 
   return (
     <>
