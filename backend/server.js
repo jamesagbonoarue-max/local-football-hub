@@ -100,6 +100,8 @@ const leagueSettingsSchema = new mongoose.Schema({
   leagueName: { type: String, required: true, trim: true, maxlength: 100 },
   matchTableUrl: { type: String, default: '' },
   matchTablePublicId: { type: String, default: '' },
+  overviewScheduleUrl: { type: String, default: '' },
+  overviewSchedulePublicId: { type: String, default: '' },
 }, { timestamps: true, versionKey: false })
 const invitationSchema = new mongoose.Schema({
   name: { type: String, required: true, maxlength: 80 },
@@ -628,8 +630,12 @@ app.get('/api/teams', databaseReady, async (request, response) => {
 })
 
 app.get('/api/league-settings', databaseReady, async (request, response) => {
-  const settings = await LeagueSettings.findById('global').select('leagueName matchTableUrl').lean()
-  response.json({ leagueName: settings?.leagueName || 'Big Boyz FC', matchTableUrl: settings?.matchTableUrl || '' })
+  const settings = await LeagueSettings.findById('global').select('leagueName matchTableUrl overviewScheduleUrl').lean()
+  response.json({
+    leagueName: settings?.leagueName || 'Big Boyz FC',
+    matchTableUrl: settings?.matchTableUrl || '',
+    overviewScheduleUrl: settings?.overviewScheduleUrl || '',
+  })
 })
 
 app.put('/api/admin/league-settings', databaseReady, authenticate, administratorOnly, async (request, response) => {
@@ -714,6 +720,78 @@ app.delete('/api/admin/match-table', databaseReady, authenticate, administratorO
     }
   }
   return response.json({ matchTableUrl: '', warning })
+})
+
+app.post('/api/admin/overview-schedule', databaseReady, authenticate, administratorOnly, parseMatchTableUpload, async (request, response) => {
+  if (!request.file) return response.status(400).json({ error: 'Choose a match schedule image to upload.' })
+
+  let uploadedImage
+  try {
+    uploadedImage = await uploadCloudinaryImage(request.file, 'local-football-league/overview-schedules')
+  } catch (error) {
+    console.error('Overview schedule image upload failed:', error.message)
+    const notConfigured = error.message.startsWith('Image uploads are not configured')
+    return response.status(notConfigured ? 503 : 502).json({
+      error: notConfigured
+        ? error.message
+        : 'Cloudinary could not upload the match schedule image. Check the Cloudinary configuration and try again.',
+    })
+  }
+
+  const previousSettings = await LeagueSettings.findById('global').select('overviewSchedulePublicId').lean()
+  let settings
+  try {
+    settings = await LeagueSettings.findByIdAndUpdate('global', {
+      $set: {
+        overviewScheduleUrl: uploadedImage.secureUrl,
+        overviewSchedulePublicId: uploadedImage.publicId,
+      },
+      $setOnInsert: { leagueName: 'Big Boyz FC' },
+    }, {
+      upsert: true,
+      returnDocument: 'after',
+      runValidators: true,
+      setDefaultsOnInsert: true,
+    }).lean()
+  } catch (error) {
+    try {
+      await deleteCloudinaryImage(uploadedImage.publicId)
+    } catch (cleanupError) {
+      console.error('Unpublished overview schedule image cleanup failed:', cleanupError.message)
+    }
+    throw error
+  }
+
+  let warning = ''
+  if (previousSettings?.overviewSchedulePublicId) {
+    try {
+      await deleteCloudinaryImage(previousSettings.overviewSchedulePublicId)
+    } catch (error) {
+      console.error('Previous overview schedule image cleanup failed:', error.message)
+      warning = 'The new image is live, but the previous image could not be removed from Cloudinary.'
+    }
+  }
+  return response.json({ overviewScheduleUrl: settings.overviewScheduleUrl, warning })
+})
+
+app.delete('/api/admin/overview-schedule', databaseReady, authenticate, administratorOnly, async (request, response) => {
+  const previousSettings = await LeagueSettings.findById('global').select('overviewSchedulePublicId').lean()
+  if (!previousSettings) return response.json({ overviewScheduleUrl: '', warning: '' })
+
+  await LeagueSettings.findByIdAndUpdate('global', {
+    $set: { overviewScheduleUrl: '', overviewSchedulePublicId: '' },
+  }, { runValidators: true })
+
+  let warning = ''
+  if (previousSettings.overviewSchedulePublicId) {
+    try {
+      await deleteCloudinaryImage(previousSettings.overviewSchedulePublicId)
+    } catch (error) {
+      console.error('Overview schedule image cleanup failed:', error.message)
+      warning = 'The image was removed from the website, but Cloudinary could not delete the stored file.'
+    }
+  }
+  return response.json({ overviewScheduleUrl: '', warning })
 })
 
 app.get('/api/admin/registrations', databaseReady, authenticate, administratorOnly, async (request, response) => {

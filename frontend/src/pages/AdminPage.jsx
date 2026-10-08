@@ -24,9 +24,12 @@ export default function AdminPage() {
   const {
     leagueName,
     matchTableUrl,
+    overviewScheduleUrl,
     setLeagueName,
     uploadMatchTable,
     removeMatchTable,
+    uploadOverviewSchedule,
+    removeOverviewSchedule,
     matches,
     addMatch,
     updateMatch,
@@ -56,6 +59,10 @@ export default function AdminPage() {
   const [matchTableError, setMatchTableError] = useState('')
   const [matchTableBusy, setMatchTableBusy] = useState(false)
   const matchTableInputRef = useRef(null)
+  const [overviewScheduleFile, setOverviewScheduleFile] = useState(null)
+  const [overviewScheduleError, setOverviewScheduleError] = useState('')
+  const [overviewScheduleBusy, setOverviewScheduleBusy] = useState(false)
+  const overviewScheduleInputRef = useRef(null)
   const [invitationForm, setInvitationForm] = useState({ name: '', email: '' })
   const [invitations, setInvitations] = useState([])
   const [administrators, setAdministrators] = useState([])
@@ -178,6 +185,45 @@ export default function AdminPage() {
       setMatchTableError(error.message)
     } finally {
       setMatchTableBusy(false)
+    }
+  }
+
+  async function saveOverviewSchedule(event) {
+    event.preventDefault()
+    setOverviewScheduleError('')
+    if (!overviewScheduleFile) {
+      setOverviewScheduleError('Choose a match schedule image to upload.')
+      return
+    }
+
+    const form = event.currentTarget
+    const formData = new FormData()
+    formData.append('image', overviewScheduleFile)
+    setOverviewScheduleBusy(true)
+    try {
+      const result = await uploadOverviewSchedule(formData)
+      setOverviewScheduleFile(null)
+      form.reset()
+      setNotice(result.warning || 'Match schedule image uploaded and published to the overview.')
+    } catch (error) {
+      setOverviewScheduleError(error.message)
+    } finally {
+      setOverviewScheduleBusy(false)
+    }
+  }
+
+  async function deleteOverviewSchedule() {
+    setOverviewScheduleError('')
+    setOverviewScheduleBusy(true)
+    try {
+      const result = await removeOverviewSchedule()
+      setOverviewScheduleFile(null)
+      if (overviewScheduleInputRef.current) overviewScheduleInputRef.current.value = ''
+      setNotice(result.warning || 'Match schedule image removed from the overview.')
+    } catch (error) {
+      setOverviewScheduleError(error.message)
+    } finally {
+      setOverviewScheduleBusy(false)
     }
   }
 
@@ -390,6 +436,34 @@ export default function AdminPage() {
             {matchTableUrl
               ? <img className="max-h-80 w-full object-contain" src={matchTableUrl} alt="Current match table image" />
               : <div className="px-4 py-8 text-center"><ImagePlus className="mx-auto text-slate-500" size={28} /><p className="mt-3 text-xs font-semibold text-slate-300">No match table image published</p><p className="mt-1 text-[10px] text-slate-500">Upload an image to add it to the overview.</p></div>}
+          </div>
+        </div>
+      </section>
+
+      <section className={`${panelClass} mb-5 overflow-hidden`}>
+        <div className="border-b border-slate-200 p-5 sm:px-6">
+          <div className="flex items-center gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-sm bg-sky-50 text-sky-800"><ImagePlus size={18} /></span>
+            <div><p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-sky-800">Overview content</p><h2 className="mt-0.5 font-display text-2xl font-bold text-slate-950">Match schedule image</h2></div>
+          </div>
+          <p className="mt-3 max-w-2xl text-xs leading-5 text-slate-500">Upload a JPG, PNG, WebP, or GIF (up to 5 MB) of the fixtures or results. It is stored in Cloudinary and displayed on the overview without replacing manually managed matches.</p>
+        </div>
+        <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.8fr)]">
+          <div>
+            {overviewScheduleError && <p className="mb-4 rounded-sm border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-semibold text-rose-800" role="alert">{overviewScheduleError}</p>}
+            <form className="space-y-3" onSubmit={saveOverviewSchedule}>
+              <label className={labelClass}>Choose schedule image<input ref={overviewScheduleInputRef} className={fieldClass} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => setOverviewScheduleFile(event.target.files[0] || null)} required /></label>
+              {overviewScheduleFile && <p className="text-xs text-slate-500">Selected: {overviewScheduleFile.name}</p>}
+              <div className="flex flex-wrap gap-2">
+                <button className="inline-flex min-h-10 items-center gap-2 rounded-sm bg-sky-800 px-4 text-xs font-extrabold text-white hover:bg-sky-900 disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={!overviewScheduleFile || overviewScheduleBusy}><Upload size={15} />{overviewScheduleBusy ? 'Working…' : 'Upload and publish'}</button>
+                {overviewScheduleUrl && <button className="inline-flex min-h-10 items-center gap-2 rounded-sm border border-rose-200 px-4 text-xs font-bold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50" type="button" onClick={deleteOverviewSchedule} disabled={overviewScheduleBusy}><Trash2 size={14} />Remove image</button>}
+              </div>
+            </form>
+          </div>
+          <div className="flex min-h-44 items-center justify-center overflow-hidden rounded-sm border border-slate-200 bg-slate-950 p-3">
+            {overviewScheduleUrl
+              ? <img className="max-h-80 w-full object-contain" src={overviewScheduleUrl} alt="Current match schedule image" />
+              : <div className="px-4 py-8 text-center"><ImagePlus className="mx-auto text-slate-500" size={28} /><p className="mt-3 text-xs font-semibold text-slate-300">No match schedule image published</p><p className="mt-1 text-[10px] text-slate-500">Upload a schedule image to add it to the overview.</p></div>}
           </div>
         </div>
       </section>

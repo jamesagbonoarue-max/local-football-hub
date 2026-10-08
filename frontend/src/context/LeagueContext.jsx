@@ -5,6 +5,7 @@ import { apiRequest } from './authApi.js'
 const emptyLeague = {
   leagueName: 'Big Boyz FC',
   matchTableUrl: '',
+  overviewScheduleUrl: '',
   matches: [],
   updates: [],
   teams: [],
@@ -32,6 +33,7 @@ export function LeagueProvider({ children }) {
           ...current,
           leagueName: settingsResult.leagueName,
           matchTableUrl: settingsResult.matchTableUrl,
+          overviewScheduleUrl: settingsResult.overviewScheduleUrl || '',
           matches: matchResult.matches,
           teams: teamResult.teams,
           updates: updateResult.updates,
@@ -73,6 +75,16 @@ export function LeagueProvider({ children }) {
     removeMatchTable: async () => {
       const result = await apiRequest('/api/admin/match-table', { method: 'DELETE' })
       setLeague((current) => ({ ...current, matchTableUrl: result.matchTableUrl }))
+      return result
+    },
+    uploadOverviewSchedule: async (formData) => {
+      const result = await apiRequest('/api/admin/overview-schedule', { method: 'POST', body: formData })
+      setLeague((current) => ({ ...current, overviewScheduleUrl: result.overviewScheduleUrl }))
+      return result
+    },
+    removeOverviewSchedule: async () => {
+      const result = await apiRequest('/api/admin/overview-schedule', { method: 'DELETE' })
+      setLeague((current) => ({ ...current, overviewScheduleUrl: result.overviewScheduleUrl }))
       return result
     },
     addMatch: async (match) => {
