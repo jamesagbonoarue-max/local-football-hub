@@ -8,7 +8,7 @@ export function AuthProvider({ children }) {
     const token = getSessionToken()
     return token ? getSessionUser(token) : null
   })
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(() => Boolean(getSessionToken()))
   const [sessionNeedsLogin, setSessionNeedsLogin] = useState(false)
 
   useEffect(() => {

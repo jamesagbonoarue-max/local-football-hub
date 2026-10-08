@@ -17,17 +17,25 @@ function RequireAdmin({ children }) {
   const { user, loading } = useAuth()
   const location = useLocation()
 
-  if (loading) return <p className="py-16 text-center text-sm text-slate-500">Checking your session…</p>
+  if (loading) return <SessionCheck />
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(location.pathname)}`} replace />
   if (user.role !== 'admin') return <Navigate to="/" replace />
   return children
+}
+
+function SessionCheck() {
+  return (
+    <main className="grid min-h-[60vh] place-items-center px-4" role="status" aria-live="polite">
+      <p className="text-sm font-semibold text-slate-600">Checking your session…</p>
+    </main>
+  )
 }
 
 function RequireUser({ children }) {
   const { user, loading } = useAuth()
   const location = useLocation()
 
-  if (loading) return <p className="py-16 text-center text-sm text-slate-500">Checking your session…</p>
+  if (loading) return <SessionCheck />
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(location.pathname)}`} replace />
   return children
 }
