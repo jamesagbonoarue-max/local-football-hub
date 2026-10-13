@@ -64,6 +64,10 @@ export function MatchListItem({ match, onEdit, onPublishResult, onDelete }) {
           <span className="inline-flex items-center gap-1.5"><CalendarDays size={13} />{date}{match.kickoff && `, ${match.kickoff}`}</span>
           {match.venue && <span className="inline-flex items-center gap-1.5"><MapPin size={13} />{match.venue}</span>}
         </div>
+        {completed && match.scorers?.length > 0 && <div className="mt-2 text-xs">
+          <span className="font-bold text-slate-700">Scorers: </span>
+          <span className="text-slate-600">{match.scorers.map((scorer, index) => <span key={`${scorer.playerName}-${scorer.teamName}-${index}`}>{index > 0 && ', '}{scorer.playerName} ({scorer.teamName}, {scorer.goals} {scorer.goals === 1 ? 'goal' : 'goals'})</span>)}</span>
+        </div>}
       </div>
       {completed && <strong className="font-display text-xl font-bold tabular-nums text-slate-900">{match.homeScore} - {match.awayScore}</strong>}
       {(onEdit || onDelete) && <div className="flex items-center gap-1">
