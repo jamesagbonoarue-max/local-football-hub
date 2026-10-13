@@ -4,7 +4,7 @@ import { useLeague } from '../context/useLeague.js'
 import { apiRequest } from '../context/authApi.js'
 import { EmptyState, fieldClass, labelClass, MatchListItem, PageHeading, panelClass, TeamIdentity } from '../components/ui.jsx'
 
-const newMatch = () => ({ id: '', homeTeam: '', awayTeam: '', date: '', kickoff: '', venue: '', status: 'scheduled', homeScore: '', awayScore: '' })
+const newMatch = () => ({ id: '', homeTeam: '', awayTeam: '', date: '', kickoff: '', venue: '', status: 'scheduled', homeScore: '', awayScore: '', scorers: [] })
 const newUpdate = () => ({ title: '', body: '' })
 
 async function loadAdminAccessLists() {
@@ -240,6 +240,9 @@ export default function AdminPage() {
         venue: matchForm.venue.trim(),
         homeScore: matchForm.status === 'completed' ? Number(matchForm.homeScore) : null,
         awayScore: matchForm.status === 'completed' ? Number(matchForm.awayScore) : null,
+        scorers: matchForm.status === 'completed'
+          ? (matchForm.scorers || []).filter((scorer) => scorer.playerName.trim())
+          : [],
       }
       if (matchForm.id) {
         await updateMatch(matchForm.id, match)
@@ -260,6 +263,7 @@ export default function AdminPage() {
       ...match,
       homeScore: match.homeScore ?? '',
       awayScore: match.awayScore ?? '',
+      scorers: match.scorers || [],
     })
   }
 
@@ -270,6 +274,7 @@ export default function AdminPage() {
       status: 'completed',
       homeScore: match.homeScore ?? '',
       awayScore: match.awayScore ?? '',
+      scorers: match.scorers || [],
     })
     setNotice(`Enter the final score for ${match.homeTeam} versus ${match.awayTeam}, then publish the result.`)
   }
@@ -492,6 +497,18 @@ export default function AdminPage() {
               {matchForm.status === 'completed' && <>
                 <label className={labelClass}>Home score<input className={fieldClass} type="number" min="0" max="99" value={matchForm.homeScore} onChange={(event) => setMatchForm({ ...matchForm, homeScore: event.target.value })} required /></label>
                 <label className={labelClass}>Away score<input className={fieldClass} type="number" min="0" max="99" value={matchForm.awayScore} onChange={(event) => setMatchForm({ ...matchForm, awayScore: event.target.value })} required /></label>
+                <fieldset className="space-y-3 sm:col-span-2">
+                  <legend className={labelClass}>Goal scorers <span className="font-normal text-slate-500">(optional)</span></legend>
+                  <div className="flex justify-end"><button className="inline-flex min-h-8 items-center gap-1 rounded-sm px-2 text-[10px] font-bold text-sky-800 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-50" type="button" onClick={() => setMatchForm({ ...matchForm, scorers: [...(matchForm.scorers || []), { playerName: '', teamName: '', goals: '1' }] })} disabled={(matchForm.scorers || []).length >= 30}><Plus size={13} />Add scorer</button></div>
+                  {(matchForm.scorers || []).map((scorer, index) => (
+                    <div className="grid items-end gap-2 rounded-sm border border-slate-200 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_100px_auto]" key={index}>
+                      <label className={labelClass}>Player<input className={fieldClass} value={scorer.playerName} onChange={(event) => setMatchForm({ ...matchForm, scorers: matchForm.scorers.map((item, itemIndex) => itemIndex === index ? { ...item, playerName: event.target.value } : item) })} maxLength="80" placeholder="Player name" required /></label>
+                      <label className={labelClass}>Team<select className={fieldClass} value={scorer.teamName} onChange={(event) => setMatchForm({ ...matchForm, scorers: matchForm.scorers.map((item, itemIndex) => itemIndex === index ? { ...item, teamName: event.target.value } : item) })} required><option value="">Select team</option><option value={matchForm.homeTeam}>{matchForm.homeTeam || 'Home team'}</option><option value={matchForm.awayTeam}>{matchForm.awayTeam || 'Away team'}</option></select></label>
+                      <label className={labelClass}>Goals<input className={fieldClass} type="number" min="1" max="99" value={scorer.goals} onChange={(event) => setMatchForm({ ...matchForm, scorers: matchForm.scorers.map((item, itemIndex) => itemIndex === index ? { ...item, goals: event.target.value } : item) })} required /></label>
+                      <button className="grid size-10 place-items-center rounded-sm text-slate-400 hover:bg-rose-50 hover:text-rose-700" type="button" aria-label={`Remove scorer ${index + 1}`} onClick={() => setMatchForm({ ...matchForm, scorers: matchForm.scorers.filter((_, itemIndex) => itemIndex !== index) })}><Trash2 size={15} /></button>
+                    </div>
+                  ))}
+                </fieldset>
               </>}
             </div>
             <div className="flex flex-wrap gap-2"><button className="inline-flex min-h-10 items-center gap-2 rounded-sm bg-sky-800 px-4 text-xs font-extrabold text-white hover:bg-sky-900" type="submit"><Plus size={15} /> {matchForm.id ? 'Save match changes' : 'Publish match'}</button>{matchForm.id && <button className="min-h-10 rounded-sm border border-slate-300 px-4 text-xs font-bold text-slate-600 hover:bg-slate-50" type="button" onClick={() => setMatchForm(newMatch())}>Cancel edit</button>}</div>

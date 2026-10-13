@@ -58,6 +58,11 @@ const accountSchema = new mongoose.Schema({
   adminIdHash: { type: String, select: false },
   verifiedAt: { type: Date, default: Date.now },
 }, { timestamps: true })
+const scorerSchema = new mongoose.Schema({
+  playerName: { type: String, required: true, trim: true, maxlength: 80 },
+  teamName: { type: String, required: true, trim: true, maxlength: 80 },
+  goals: { type: Number, required: true, min: 1, max: 99 },
+}, { _id: false })
 const matchSchema = new mongoose.Schema({
   homeTeam: { type: String, required: true, trim: true, maxlength: 80 },
   awayTeam: { type: String, required: true, trim: true, maxlength: 80 },
@@ -67,6 +72,7 @@ const matchSchema = new mongoose.Schema({
   status: { type: String, enum: ['scheduled', 'completed'], default: 'scheduled' },
   homeScore: { type: Number, min: 0, max: 99, default: null },
   awayScore: { type: Number, min: 0, max: 99, default: null },
+  scorers: { type: [scorerSchema], default: [] },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Account', required: true },
 }, { timestamps: true })
 matchSchema.index({ date: 1, kickoff: 1 })
@@ -184,7 +190,26 @@ function safeMatch(match) {
     status: match.status,
     homeScore: match.homeScore,
     awayScore: match.awayScore,
+    scorers: (match.scorers || []).map(({ playerName, teamName, goals }) => ({ playerName, teamName, goals })),
   }
+}
+
+function parseMatchScorers(value, homeTeam, awayTeam) {
+  if (!Array.isArray(value) || value.length > 30) {
+    return { error: 'Add no more than 30 scorer entries.' }
+  }
+  const scorers = []
+  for (const scorer of value) {
+    const playerName = String(scorer?.playerName || '').trim()
+    const teamName = String(scorer?.teamName || '').trim()
+    const goals = Number(scorer?.goals)
+    const isMatchTeam = [homeTeam, awayTeam].some((team) => team.toLowerCase() === teamName.toLowerCase())
+    if (!playerName || playerName.length > 80 || !isMatchTeam || !Number.isInteger(goals) || goals < 1 || goals > 99) {
+      return { error: 'Enter a player, a team from this match, and a valid goal count for every scorer.' }
+    }
+    scorers.push({ playerName, teamName: [homeTeam, awayTeam].find((team) => team.toLowerCase() === teamName.toLowerCase()), goals })
+  }
+  return { scorers }
 }
 
 function safeLeagueUpdate(update) {
@@ -1033,8 +1058,12 @@ app.post('/api/admin/matches', databaseReady, authenticate, administratorOnly, a
   if (status === 'completed' && (!Number.isInteger(homeScore) || homeScore < 0 || homeScore > 99 || !Number.isInteger(awayScore) || awayScore < 0 || awayScore > 99)) {
     return response.status(400).json({ error: 'Enter valid scores between 0 and 99.' })
   }
+  const scorerResult = status === 'completed'
+    ? parseMatchScorers(request.body?.scorers ?? [], homeTeam, awayTeam)
+    : { scorers: [] }
+  if (scorerResult.error) return response.status(400).json({ error: scorerResult.error })
 
-  const match = await Match.create({ homeTeam, awayTeam, date, kickoff, venue, status, homeScore, awayScore, createdBy: request.account._id })
+  const match = await Match.create({ homeTeam, awayTeam, date, kickoff, venue, status, homeScore, awayScore, scorers: scorerResult.scorers, createdBy: request.account._id })
   return response.status(201).json({ match: safeMatch(match) })
 })
 
@@ -1055,8 +1084,12 @@ app.put('/api/admin/matches/:id', databaseReady, authenticate, administratorOnly
   const homeScore = status === 'completed' ? Number(request.body?.homeScore) : null
   const awayScore = status === 'completed' ? Number(request.body?.awayScore) : null
   if (status === 'completed' && (!Number.isInteger(homeScore) || homeScore < 0 || homeScore > 99 || !Number.isInteger(awayScore) || awayScore < 0 || awayScore > 99)) return response.status(400).json({ error: 'Enter valid scores between 0 and 99.' })
+  const scorerResult = status === 'completed'
+    ? parseMatchScorers(request.body?.scorers ?? [], homeTeam, awayTeam)
+    : { scorers: [] }
+  if (scorerResult.error) return response.status(400).json({ error: scorerResult.error })
 
-  const match = await Match.findByIdAndUpdate(request.params.id, { homeTeam, awayTeam, date, kickoff, venue, status, homeScore, awayScore }, { returnDocument: 'after', runValidators: true })
+  const match = await Match.findByIdAndUpdate(request.params.id, { homeTeam, awayTeam, date, kickoff, venue, status, homeScore, awayScore, scorers: scorerResult.scorers }, { returnDocument: 'after', runValidators: true })
   if (!match) return response.status(404).json({ error: 'Match not found.' })
   return response.json({ match: safeMatch(match) })
 })

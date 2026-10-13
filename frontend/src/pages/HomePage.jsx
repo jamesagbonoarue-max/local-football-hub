@@ -13,6 +13,21 @@ export default function HomePage() {
     .sort((left, right) => String(left.date || '').localeCompare(String(right.date || '')))[0]
   const latestMatches = [...matches].sort((left, right) => String(right.date || '').localeCompare(String(left.date || ''))).slice(0, 5)
   const latestUpdates = [...updates].sort((left, right) => String(right.createdAt || '').localeCompare(String(left.createdAt || ''))).slice(0, 3)
+  const scorerTotals = new Map()
+  matches.filter((match) => match.status === 'completed').forEach((match) => {
+    (match.scorers || []).forEach((scorer) => {
+      const key = `${scorer.playerName.trim().toLocaleLowerCase()}|${scorer.teamName.trim().toLocaleLowerCase()}`
+      const existing = scorerTotals.get(key)
+      scorerTotals.set(key, {
+        playerName: scorer.playerName,
+        teamName: scorer.teamName,
+        goals: (existing?.goals || 0) + scorer.goals,
+      })
+    })
+  })
+  const topScorers = [...scorerTotals.values()]
+    .sort((left, right) => right.goals - left.goals || left.playerName.localeCompare(right.playerName))
+    .slice(0, 5)
 
   return (
     <>
@@ -96,6 +111,13 @@ export default function HomePage() {
         </div>
 
         <div className="space-y-5">
+          <section className={`${panelClass} p-5 sm:p-6`}>
+            <div className="mb-4 flex items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-sm bg-amber-50 text-amber-700"><Trophy size={17} /></span><div><p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-sky-800">Season leaderboard</p><h2 className="mt-0.5 font-display text-2xl font-bold text-slate-950">Top scorers</h2></div></div>
+            {topScorers.length
+              ? <ol className="divide-y divide-slate-100">{topScorers.map((scorer, index) => <li className="flex items-center gap-3 py-3 first:pt-0 last:pb-0" key={`${scorer.playerName}-${scorer.teamName}`}><span className="grid size-8 shrink-0 place-items-center rounded-sm bg-slate-100 font-display text-sm font-bold text-slate-600">{index + 1}</span><span className="min-w-0 flex-1"><strong className="block truncate text-sm text-slate-900">{scorer.playerName}</strong><span className="block truncate text-xs text-slate-500">{scorer.teamName}</span></span><span className="shrink-0 rounded-sm bg-lime-100 px-2.5 py-1.5 text-xs font-extrabold text-lime-900">{scorer.goals} {scorer.goals === 1 ? 'goal' : 'goals'}</span></li>)}</ol>
+              : <EmptyState icon={Trophy} title="No scorers recorded" description="Player goal totals will appear here when results are published." />}
+          </section>
+
           <section className={`${panelClass} p-5 sm:p-6`}>
             <div className="mb-4 flex items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-sm bg-sky-50 text-sky-800"><Newspaper size={17} /></span><div><p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-sky-800">League office</p><h2 className="mt-0.5 font-display text-2xl font-bold text-slate-950">Latest updates</h2></div></div>
             {latestUpdates.length ? <div className="space-y-3">{latestUpdates.map((update) => <article className="rounded-sm border border-slate-200 border-l-4 border-l-lime-400 bg-slate-50/70 p-4" key={update.id}><p className="text-[10px] font-bold uppercase tracking-wide text-sky-800">{new Date(update.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p><h3 className="mt-1.5 text-sm font-extrabold leading-5 text-slate-950">{update.title}</h3><p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-600">{update.body}</p></article>)}</div> : <EmptyState icon={Newspaper} title="No updates yet" description="League announcements will appear here when published." />}
